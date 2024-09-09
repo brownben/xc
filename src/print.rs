@@ -2,6 +2,7 @@
 
 use crate::{
   discovery::DiscoveredTests,
+  json,
   run::{OutcomeKind, TestOutcome, TestSummary},
 };
 
@@ -54,7 +55,23 @@ pub fn test_result(test: &TestOutcome) -> io::Result<()> {
   w.flush()
 }
 
-pub fn summary(summary: &TestSummary) {
+pub fn results_summary(results: &TestSummary) {
+  summary(&results);
+  for result in &results.tests {
+    if result.is_fail() {
+      error(&result);
+    }
+  }
+}
+
+pub fn json_results(results: &TestSummary) {
+  let stdout = io::stdout().lock();
+  let output: Vec<_> = results.tests.iter().map(json::TestOutput::from).collect();
+
+  serde_json::to_writer(stdout, &output).unwrap();
+}
+
+fn summary(summary: &TestSummary) {
   let summary_style = match () {
     () if summary.run() == 0 => Style::new().bold().yellow(),
     () if summary.failed == 0 => Style::new().bold().green(),
@@ -80,7 +97,7 @@ pub fn summary(summary: &TestSummary) {
   eprintln!();
 }
 
-pub fn error(test: &TestOutcome) {
+fn error(test: &TestOutcome) {
   debug_assert!(test.is_fail());
 
   eprint!("\n{}", "FAIL: ".bold().red());

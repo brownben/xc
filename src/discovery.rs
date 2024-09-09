@@ -45,6 +45,17 @@ impl Test {
       Test::Method { method, .. } => method,
     }
   }
+
+  /// Get the name and suite of the test combined into a single identifier
+  pub fn identifier(&self) -> String {
+    let mut identifier = String::new();
+    if let Some(suite) = self.suite() {
+      identifier.push_str(suite);
+      identifier.push('.');
+    }
+    identifier.push_str(self.name());
+    identifier
+  }
 }
 
 /// Holds the tests discovered, and metadata about the discovery

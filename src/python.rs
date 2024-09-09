@@ -6,6 +6,7 @@
 #![allow(unsafe_code)]
 
 use pyo3_ffi::{self as ffi};
+use serde::{Deserialize, Serialize};
 use std::ffi::{CStr, CString};
 use std::{env, fmt, fs, io, mem, path, ptr};
 use widestring::WideCString;
@@ -198,7 +199,7 @@ impl fmt::Display for PyObject {
 
 #[allow(unused)]
 /// An error which occurred whilst executing Python code
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Error {
   pub kind: String,
   pub message: String,
@@ -233,13 +234,13 @@ impl Error {
   }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TracebackFrame {
   pub line: usize,
   pub function: String,
   pub file: path::PathBuf,
 }
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Trackback {
   pub frames: Vec<TracebackFrame>,
 }

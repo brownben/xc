@@ -2,6 +2,7 @@
 #![deny(unsafe_code)]
 
 mod discovery;
+mod json;
 mod print;
 mod python;
 mod run;
@@ -12,12 +13,13 @@ use rayon::prelude::*;
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-  /// List of files or directories to check for tests.
-  #[clap(
-    help = "List of files or directories to test [default: .]",
-    default_value = "."
-  )]
+  /// List of files or directories to test [default: .]
+  #[clap(default_value = ".")]
   pub paths: Vec<std::path::PathBuf>,
+
+  /// Output results as JSON to stdout
+  #[clap(long, default_value_t = false)]
+  pub json: bool,
 }
 
 fn main() {
@@ -25,13 +27,13 @@ fn main() {
 
   print::heading(&python::version());
 
-  let tests = discovery::find_tests(&args.paths);
-  print::discovery(&tests);
+  let discovered = discovery::find_tests(&args.paths);
+  print::discovery(&discovered);
 
   let _interpreter = python::Interpreter::initialize();
-  let progress_bar = print::create_progress_bar(tests.tests.len());
+  let progress_bar = print::create_progress_bar(discovered.tests.len());
 
-  let results: run::TestSummary = tests
+  let results: run::TestSummary = discovered
     .tests
     .par_iter()
     .map(|test| python::SubInterpreter::new().run(|| run::test(test)))
@@ -45,10 +47,9 @@ fn main() {
 
   progress_bar.finish_and_clear();
 
-  print::summary(&results);
-  for result in results.tests {
-    if result.is_fail() {
-      print::error(&result);
-    }
+  print::results_summary(&results);
+
+  if args.json {
+    print::json_results(&results);
   }
 }
