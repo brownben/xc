@@ -1,0 +1,10 @@
+[package]
+name = "xc"
+version = "0.1.0"
+authors = ["Ben Brown <9870007+brownben@users.noreply.github.com>>"]
+edition = "2021"
+description = "A parallel test runner for Python using subinterpreters."
+repository = "https://github.com/brownben/xc"
+license = "Apache-2.0"
+
+[dependencies]
