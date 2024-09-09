@@ -12,6 +12,7 @@ mod tests;
 
 use clap::Parser;
 use rayon::prelude::*;
+use std::process::ExitCode;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -25,7 +26,7 @@ struct Args {
   pub json: bool,
 }
 
-fn main() {
+fn main() -> ExitCode {
   let args = Args::parse();
 
   print::heading(&python::version());
@@ -54,5 +55,11 @@ fn main() {
 
   if args.json {
     print::json_results(&results);
+  };
+
+  if results.failed == 0 && results.passed > 0 {
+    ExitCode::SUCCESS
+  } else {
+    ExitCode::FAILURE
   }
 }

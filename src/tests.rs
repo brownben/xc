@@ -7,6 +7,7 @@ macro_rules! run_tests {
       .unwrap()
       .arg($file)
       .arg("--json")
+      .output()
       .unwrap();
 
     let stdout = String::from_utf8(cmd_output.stdout).unwrap();
