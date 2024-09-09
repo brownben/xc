@@ -12,4 +12,6 @@ anstream = "0.6.15"
 clap = { version = "4.5.17",  features = ["derive"] }
 ignore = "0.4.23"
 owo-colors = "4.0.0"
+pyo3-ffi = "0.22.2"
 ruff_python_parser = { git = "https://github.com/astral-sh/ruff", "rev" = "e1603e3" }
+widestring = "1.1.0"

@@ -5,8 +5,9 @@ use crate::discovery::DiscoveredTests;
 use anstream::eprintln;
 use owo_colors::OwoColorize;
 
-pub fn heading() {
-  eprintln!("{}", "xc 🏃".bold().blue());
+pub fn heading(python_version: &str) {
+  eprint!("{}", "xc 🏃".bold().blue());
+  eprintln!("{}", format!(" (Python {python_version})").dimmed());
 }
 
 pub fn discovery(tests: &DiscoveredTests) {

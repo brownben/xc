@@ -4,6 +4,7 @@
 
 mod discovery;
 mod print;
+mod python;
 
 use clap::Parser;
 
@@ -21,7 +22,7 @@ struct Args {
 fn main() {
   let args = Args::parse();
 
-  print::heading();
+  print::heading(&python::version());
 
   let tests = discovery::find_tests(&args.paths);
   print::discovery(&tests);
