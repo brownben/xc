@@ -7,6 +7,9 @@ mod print;
 mod python;
 mod run;
 
+#[cfg(test)]
+mod tests;
+
 use clap::Parser;
 use rayon::prelude::*;
 
