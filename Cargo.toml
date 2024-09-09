@@ -8,3 +8,8 @@ repository = "https://github.com/brownben/xc"
 license = "Apache-2.0"
 
 [dependencies]
+anstream = "0.6.15"
+clap = { version = "4.5.17",  features = ["derive"] }
+ignore = "0.4.23"
+owo-colors = "4.0.0"
+ruff_python_parser = { git = "https://github.com/astral-sh/ruff", "rev" = "e1603e3" }
