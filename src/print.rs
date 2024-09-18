@@ -3,7 +3,8 @@
 use crate::{
   discovery::DiscoveredTests,
   json,
-  run::{OutcomeKind, TestOutcome, TestSummary},
+  run::{OutcomeKind, TestOutcome},
+  TestSummary,
 };
 
 use anstream::eprintln;
@@ -56,10 +57,10 @@ pub fn test_result(test: &TestOutcome) -> io::Result<()> {
 }
 
 pub fn results_summary(results: &TestSummary) {
-  summary(&results);
+  summary(results);
   for result in &results.tests {
     if result.is_fail() {
-      error(&result);
+      error(result);
     }
   }
 }

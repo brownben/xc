@@ -3,7 +3,6 @@ use crate::{
   python::{self, Error, PyObject},
 };
 
-use rayon::iter::{FromParallelIterator, IntoParallelIterator, ParallelIterator};
 use std::{
   ffi::CStr,
   ops,
@@ -69,71 +68,6 @@ pub enum OutcomeKind {
   ExpectedFailure { time: Duration },
   /// Couldn't find test (likely due to static test def being changed at runtime)
   TestNotFound,
-}
-
-/// Summary of all tests that were run
-#[derive(Clone, Debug, Default)]
-pub struct TestSummary<'tests> {
-  pub duration: Duration,
-
-  pub passed: usize,
-  pub skipped: usize,
-  pub failed: usize,
-
-  pub tests: Vec<TestOutcome<'tests>>,
-}
-impl TestSummary<'_> {
-  pub fn run(&self) -> usize {
-    self.passed + self.failed
-  }
-}
-impl<'test> FromIterator<TestOutcome<'test>> for TestSummary<'test> {
-  fn from_iter<T: IntoIterator<Item = TestOutcome<'test>>>(iter: T) -> Self {
-    let start_time = Instant::now();
-    let tests: Vec<_> = iter.into_iter().collect();
-    let duration = start_time.elapsed();
-
-    let (mut passed, mut skipped, mut failed) = (0, 0, 0);
-    for test in &tests {
-      match test.outcome {
-        OutcomeKind::Pass { .. } => passed += 1,
-        OutcomeKind::Skip { .. } => skipped += 1,
-        _ => failed += 1,
-      };
-    }
-
-    TestSummary {
-      duration,
-      passed,
-      skipped,
-      failed,
-      tests,
-    }
-  }
-}
-impl<'test> FromParallelIterator<TestOutcome<'test>> for TestSummary<'test> {
-  fn from_par_iter<I: IntoParallelIterator<Item = TestOutcome<'test>>>(iter: I) -> Self {
-    let start_time = Instant::now();
-    let tests: Vec<_> = iter.into_par_iter().collect();
-    let duration = start_time.elapsed();
-
-    let (mut passed, mut skipped, mut failed) = (0, 0, 0);
-    for test in &tests {
-      match test.outcome {
-        OutcomeKind::Pass { .. } => passed += 1,
-        OutcomeKind::Skip { .. } => skipped += 1,
-        _ => failed += 1,
-      };
-    }
-
-    TestSummary {
-      duration,
-      passed,
-      skipped,
-      failed,
-      tests,
-    }
-  }
 }
 
 /// Executes the test as described by the [`TestToRun`]

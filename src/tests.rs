@@ -7,6 +7,7 @@ macro_rules! run_tests {
       .unwrap()
       .arg($file)
       .arg("--json")
+      .arg("--no-fail-fast")
       .output()
       .unwrap();
 
@@ -104,7 +105,6 @@ fn failing_test() {
 fn invalid_method() {
   let results = run_tests!("./examples/invalid_method.py");
 
-  println!("{results:?}");
   assert_eq!(results.len(), 1);
   assert!(results.iter().all(|x| x.outcome == Outcome::Fail));
 
