@@ -65,6 +65,8 @@ pub struct DiscoveredTests {
   pub duration: Duration,
   /// The tests that were found
   pub tests: Vec<Test>,
+  /// How many tests were found
+  pub test_count: usize,
   /// How many files were the tests found in
   pub file_count: usize,
 }
@@ -75,6 +77,7 @@ impl DiscoveredTests {
       duration: Duration::from_secs(0),
       tests: Vec::new(),
       file_count: 0,
+      test_count: 0,
     }
   }
 }
@@ -188,5 +191,6 @@ impl Drop for TestFinder<'_> {
     global_state.tests.extend_from_slice(&self.tests);
     global_state.file_count += self.file_count;
     global_state.duration = global_state.start.elapsed();
+    global_state.test_count += self.tests.len();
   }
 }
