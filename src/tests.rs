@@ -87,10 +87,16 @@ fn failing_test() {
   assert_eq!(results.len(), 2);
   assert!(results.iter().all(|x| x.outcome == Outcome::Fail));
 
-  let error = results.get(0).unwrap().error.as_ref().unwrap();
+  let (regular_fail, other_error) = if results[0].test_identifier == "test_regular_fail" {
+    (&results[0], &results[1])
+  } else {
+    (&results[1], &results[0])
+  };
+
+  let error = regular_fail.error.as_ref().unwrap();
   assert_eq!(error.kind, "AssertionError");
 
-  let error = results.get(1).unwrap().error.as_ref().unwrap();
+  let error = other_error.error.as_ref().unwrap();
   assert_eq!(error.kind, "TypeError");
 }
 
