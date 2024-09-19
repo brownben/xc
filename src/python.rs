@@ -8,8 +8,10 @@
 use pyo3_ffi::{self as ffi};
 use serde::{Deserialize, Serialize};
 use std::ffi::{CStr, CString};
-use std::{env, fmt, fs, io, mem, path, ptr};
+use std::{env, fmt, fs, io, iter, mem, path, ptr};
 use widestring::WideCString;
+
+use crate::coverage;
 
 pub fn version() -> String {
   let version = unsafe { CStr::from_ptr(ffi::Py_GetVersion()) };
@@ -65,6 +67,7 @@ impl Drop for Interpreter {
 /// Represents a Python Subinterpreter (An interpreter for a specific thread)
 pub struct SubInterpreter {
   interpreter_state: *mut ffi::PyThreadState,
+  coverage: Option<coverage::TraceObject>,
 }
 impl SubInterpreter {
   /// The default configuration to create a Subinterpreter with it's own global interpreter lock
@@ -89,16 +92,43 @@ impl SubInterpreter {
       ffi::PyEval_SaveThread(); // Stops Deadlock
     };
 
-    Self { interpreter_state }
+    Self {
+      interpreter_state,
+      coverage: None,
+    }
+  }
+
+  pub fn enable_coverage(&mut self) {
+    unsafe { ffi::PyEval_RestoreThread(self.interpreter_state) };
+
+    let stdlib_path = get_standard_library_path();
+    self.coverage = Some(coverage::TraceObject::new(stdlib_path));
+
+    let coverage = ptr::from_mut(self.coverage.as_mut().unwrap()).cast();
+    unsafe { ffi::PyEval_SetTrace(Some(coverage::trace_function), coverage) };
+
+    self.interpreter_state = unsafe { ffi::PyEval_SaveThread() };
+  }
+
+  pub fn get_coverage(&mut self) -> Option<coverage::Lines> {
+    let coverage = mem::take(&mut self.coverage);
+    coverage.map(coverage::TraceObject::finish)
   }
 
   /// Loads the subinterpreter into the current thread, runs the given function,
   /// then destroys the subinterpreter.
-  pub fn run<T>(self, f: impl Fn() -> T) -> T {
+  pub fn run<T>(&mut self, f: impl Fn() -> T) -> T {
     unsafe { ffi::PyEval_RestoreThread(self.interpreter_state) };
     let result = f();
-    unsafe { ffi::Py_EndInterpreter(self.interpreter_state) };
+    self.interpreter_state = unsafe { ffi::PyEval_SaveThread() };
+
     result
+  }
+}
+impl Drop for SubInterpreter {
+  fn drop(&mut self) {
+    unsafe { ffi::PyEval_RestoreThread(self.interpreter_state) };
+    unsafe { ffi::Py_EndInterpreter(self.interpreter_state) };
   }
 }
 
@@ -172,6 +202,30 @@ impl PyObject {
       name_type.to_string()
     }
   }
+
+  /// View as an iterator, and iterate over it
+  pub fn iter(&self) -> impl Iterator<Item = PyObject> {
+    let iterator = self.as_ptr();
+
+    iter::from_fn(move || {
+      let next = unsafe { ffi::PyIter_Next(iterator) };
+      if next.is_null() {
+        None
+      } else {
+        Some(PyObject::new(next).unwrap())
+      }
+    })
+  }
+
+  /// Convert the object to an iterator
+  pub fn as_iterator(&self) -> Result<PyObject, Error> {
+    unsafe { Self::new(ffi::PyObject_GetIter(self.as_ptr())) }
+  }
+
+  /// Is the object a code object?
+  pub fn is_code_object(&self) -> bool {
+    unsafe { ffi::PyCode_Check(self.as_ptr()) == 1 }
+  }
 }
 impl Drop for PyObject {
   fn drop(&mut self) {
@@ -213,7 +267,6 @@ impl Error {
   fn get_exception() -> Self {
     let exception_object =
       PyObject(unsafe { ptr::NonNull::new_unchecked(ffi::PyErr_GetRaisedException()) });
-    // .expect("exception to have been raised");
 
     let kind = exception_object.type_name();
     let message = exception_object.to_string();
@@ -279,25 +332,32 @@ impl Trackback {
   }
 }
 
-/// Execute the given and returns the [`PyObject`] representing the executed module, or an error which has arisen
-pub fn execute_file(file: &path::Path) -> Result<PyObject, Error> {
+/// Compile the given file into a [`PyObject`] containing the bytecode
+pub fn compile_file(file: &path::Path) -> Result<PyObject, Error> {
   let file = &file.canonicalize().expect("file to exist");
 
   add_all_parent_modules_to_path(file);
   capture_stdout_stderr();
 
-  let source: CString = read_file_to_c_str(file).unwrap();
   let file_name: CString = filename_to_cstring(file);
-  let module_name: CString = calculate_module_name(file);
+  let source: CString = read_file_to_c_str(file).unwrap();
 
   unsafe {
-    // Compile the sourcecode into Bytecode
-    let bytecode_object = PyObject::new(ffi::Py_CompileString(
+    PyObject::new(ffi::Py_CompileString(
       source.as_ptr(),
       file_name.as_ptr(),
       ffi::Py_file_input,
-    ))?;
+    ))
+  }
+}
 
+/// Execute the given and returns the [`PyObject`] representing the executed module, or an error which has arisen
+pub fn execute_file(file: &path::Path) -> Result<PyObject, Error> {
+  let file_name: CString = filename_to_cstring(file);
+  let module_name: CString = calculate_module_name(file);
+  let bytecode_object = compile_file(file)?;
+
+  unsafe {
     // Execute the compiled bytecode module
     PyObject::new(ffi::PyImport_ExecCodeModuleEx(
       module_name.as_ptr(),
@@ -309,7 +369,7 @@ pub fn execute_file(file: &path::Path) -> Result<PyObject, Error> {
 
 /// Execute a string of python code as a module
 fn execute_string(string: &CStr) -> Result<PyObject, Error> {
-  let filename = c"<string>";
+  let filename = c"<xc internals>";
 
   unsafe {
     // Compile the sourcecode into Bytecode
@@ -423,7 +483,7 @@ fn read_file_to_c_str(path: &path::Path) -> io::Result<CString> {
 }
 
 fn filename_to_cstring(path: &path::Path) -> CString {
-  let file_name = path.file_name().unwrap().to_string_lossy();
+  let file_name = path.to_string_lossy();
 
   CString::new(file_name.to_string()).unwrap()
 }
@@ -463,4 +523,17 @@ stderr = sys.stderr.getvalue()
   let stderr = module.get_attr_cstr(c"stderr").expect("var to exist");
 
   (stdout.to_string(), stderr.to_string())
+}
+
+/// Get the path to the standard library
+///
+/// This is used to exclude the standard library from coverage. The `os` module is the
+/// only module which has the `__file__` attribute.
+fn get_standard_library_path() -> String {
+  unsafe {
+    let os_module = PyObject::new(ffi::PyImport_ImportModule(c"os".as_ptr())).unwrap();
+    let os_module_file = os_module.get_attr_cstr(c"__file__").unwrap().to_string();
+
+    os_module_file.strip_suffix("os.py").unwrap().to_owned()
+  }
 }

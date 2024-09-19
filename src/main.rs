@@ -2,6 +2,7 @@
 #![allow(clippy::unsafe_derive_deserialize)]
 #![deny(unsafe_code)]
 
+mod coverage;
 mod discovery;
 mod json;
 mod print;
@@ -31,6 +32,10 @@ struct Args {
   #[clap(long, default_value_t = false)]
   pub no_fail_fast: bool,
 
+  /// Calculate coverage information for the tests
+  #[clap(long, default_value_t = false)]
+  pub coverage: bool,
+
   /// Output results as JSON to stdout
   #[clap(long, default_value_t = false)]
   pub json: bool,
@@ -53,24 +58,35 @@ fn main() -> ExitCode {
   let mut results: TestSummary = discovered
     .tests
     .par_iter()
-    .map(|test| python::SubInterpreter::new().run(|| run::test(test)))
-    .map(|result| {
+    .map(|test| {
+      let mut subinterpreter = python::SubInterpreter::new();
+
+      if args.coverage {
+        subinterpreter.enable_coverage();
+      }
+
+      let outcome = subinterpreter.run(|| run::test(test));
+      let coverage = subinterpreter.get_coverage();
+
+      (outcome, coverage)
+    })
+    .map(|(outcome, coverage)| {
       if args.no_fail_fast {
-        return Some(result);
+        return Some((outcome, coverage));
       }
 
       if seen_failed_test.load(Relaxed) {
         return None;
       }
 
-      if result.is_fail() {
+      if outcome.is_fail() {
         seen_failed_test.store(true, Relaxed);
       }
 
-      Some(result)
+      Some((outcome, coverage))
     })
     .while_some()
-    .inspect(|result| {
+    .inspect(|(result, _coverage)| {
       progress_bar.suspend(|| print::test_result(result).unwrap());
       progress_bar.inc(1);
     })
@@ -84,7 +100,14 @@ fn main() -> ExitCode {
     print::json_results(&results);
   };
 
-  if results.failed == 0 && results.passed > 0 {
+  let successful = results.failed == 0 && results.passed > 0;
+
+  if args.coverage && successful {
+    let possible_lines = coverage::get_executable_lines(&args.paths);
+    print::coverage_summary(&possible_lines, &results.executed_lines);
+  }
+
+  if successful {
     ExitCode::SUCCESS
   } else {
     ExitCode::FAILURE
@@ -101,6 +124,7 @@ pub struct TestSummary<'tests> {
   pub failed: usize,
 
   pub tests: Vec<TestOutcome<'tests>>,
+  pub executed_lines: coverage::Lines,
 }
 impl TestSummary<'_> {
   #[must_use]
@@ -115,10 +139,16 @@ impl TestSummary<'_> {
     }
   }
 }
-impl<'tests> FromParallelIterator<TestOutcome<'tests>> for TestSummary<'tests> {
-  fn from_par_iter<T: IntoParallelIterator<Item = TestOutcome<'tests>>>(iter: T) -> Self {
+impl<'tests> FromParallelIterator<(TestOutcome<'tests>, Option<coverage::Lines>)>
+  for TestSummary<'tests>
+{
+  fn from_par_iter<
+    T: IntoParallelIterator<Item = (TestOutcome<'tests>, Option<coverage::Lines>)>,
+  >(
+    iter: T,
+  ) -> Self {
     let start_time = Instant::now();
-    let tests: Vec<_> = iter.into_par_iter().collect();
+    let (tests, executed_lines): (Vec<_>, coverage::Lines) = iter.into_par_iter().unzip();
     let duration = start_time.elapsed();
 
     let (mut passed, mut skipped, mut failed) = (0, 0, 0);
@@ -136,6 +166,7 @@ impl<'tests> FromParallelIterator<TestOutcome<'tests>> for TestSummary<'tests> {
       skipped,
       failed,
       tests,
+      executed_lines,
     }
   }
 }

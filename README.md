@@ -4,6 +4,7 @@ A parallel test runner for Python using subinterpreters, written in Rust.
 
 - ⚡️ Run all your tests in parallel
 - 🔬 Each test is isolated
+- 📔 Integrated coverage statistics
 - 🤝 Works with Python 3.13
 - 🔎 Automatic test discovery
 - 🦀 Written in Rust
@@ -44,6 +45,19 @@ Or can be in a `pytest` style:
 ```python
 def test_add():
     assert (1 + 2) == 3
+```
+
+Add the `--coverage` flag to see coverage statistics:
+
+```
+╭─ Coverage
+│  File                                                    Lines    Missed  Coverage
+├─ .\examples\test_times.py                                   28         0    100.0%
+├─ .\examples\simple_function.py                               7         0    100.0%
+├─ .\examples\skip_test.py                                    13         3     76.9%
+├─ .\examples\invalid_method.py                                9         4     55.6%
+├─ .\examples\times.py                                        17         0    100.0%
+╰──
 ```
 
 ## License
