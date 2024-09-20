@@ -10,7 +10,10 @@ pub struct TestOutput {
   pub file: PathBuf,
   pub test_identifier: String,
   pub outcome: Outcome,
+
+  #[serde(skip_serializing_if = "Option::is_none")]
   pub error: Option<Error>,
+  #[serde(skip_serializing_if = "Option::is_none")]
   pub time: Option<Duration>,
 }
 
