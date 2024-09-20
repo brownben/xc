@@ -248,11 +248,6 @@ impl PyObject {
       .unwrap()
   }
 }
-impl Drop for PyObject {
-  fn drop(&mut self) {
-    unsafe { ffi::Py_DECREF(self.as_ptr()) };
-  }
-}
 impl fmt::Display for PyObject {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     unsafe {
