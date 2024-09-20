@@ -9,9 +9,9 @@ A parallel test runner for Python using subinterpreters, written in Rust.
 - 🔎 Automatic test discovery
 - 🦀 Written in Rust
 
-`xc` aims to be a fast parallel test runner for Python. It statically finds tests across all your Python files, before running each test in its own thread. Each test is executed in its own subinterpreter, which means it is independent of all other tests. Subinterpreters allow multiple Python interpreters to be in the same process, rather than having to start a new process for each test.
+`xc` aims to be a fast parallel test runner for Python. It statically finds tests across all your Python files, before running each test in its own thread. Each test is executed in its own subinterpreter, which means it is independent of all other tests. Subinterpreters with separate GILs allow multiple Python interpreters to be in the same process, rather than having to start a new process for each test.
 
-However, subinterpreters are only available in Python 3.12+ and many external modules (such as `pydantic`) as well as some standard library modules (such as `decimal`) don't support them yet.
+However, subinterpreters with separate GILs are only available in Python 3.12+ and many external modules (such as `pydantic`) as well as some standard library modules (such as `decimal`) don't support them yet.
 
 ## Usage
 
@@ -30,7 +30,7 @@ xc ./specific/file.py  # runs tests found in a specific file
 xc ./a.py ./b.py       # multiple paths can be specified
 ```
 
-Tests can be in `unitest` format:
+Tests can be in `unittest` format:
 
 ```python
 import unittest
