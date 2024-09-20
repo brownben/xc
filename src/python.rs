@@ -300,6 +300,9 @@ impl Error {
   pub fn is_assertion_error(&self) -> bool {
     self.kind == "AssertionError"
   }
+  pub fn is_skip_exception(&self) -> bool {
+    self.kind.starts_with("Skip")
+  }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

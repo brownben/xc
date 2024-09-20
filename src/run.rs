@@ -120,6 +120,9 @@ fn test_method(test: &Test) -> OutcomeKind {
     Ok(_) if expecting_failure => OutcomeKind::ExpectedFailure { time },
     Err(_) if expecting_failure => OutcomeKind::Pass { time },
     Ok(_) => OutcomeKind::Pass { time },
+    Err(error) if error.is_skip_exception() => OutcomeKind::Skip {
+      reason: error.message,
+    },
     Err(error) if !error.is_assertion_error() => OutcomeKind::Error { time, error },
     Err(error) => OutcomeKind::Fail { error, time },
   }
@@ -148,6 +151,9 @@ fn test_function(test: &Test) -> OutcomeKind {
     Ok(_) if expecting_failure => OutcomeKind::ExpectedFailure { time },
     Err(_) if expecting_failure => OutcomeKind::Pass { time },
     Ok(_) => OutcomeKind::Pass { time },
+    Err(error) if error.is_skip_exception() => OutcomeKind::Skip {
+      reason: error.message,
+    },
     Err(error) if !error.is_assertion_error() => OutcomeKind::Error { time, error },
     Err(error) => OutcomeKind::Fail { error, time },
   }

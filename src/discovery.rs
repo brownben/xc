@@ -125,7 +125,7 @@ fn get_test_methods(file: &Path, tests: &mut Vec<Test>) {
     if let Some(function_def) = statement.as_function_def_stmt() {
       let name = &function_def.name;
 
-      if name.starts_with("test") {
+      if name.starts_with("test") || name.ends_with("test") {
         tests.push(Test::Function {
           file: file.into(),
           function: name.to_string(),

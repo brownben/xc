@@ -18,3 +18,6 @@ class TestSuite(unittest.TestCase):
 class TestSuiteTwo(unittest.TestCase):
     def test(self):
         assert 4 == 5
+
+def skipping_by_raising_an_exception_test():
+    raise unittest.SkipTest("Skipping a function by raising")

@@ -61,7 +61,7 @@ fn long_running() {
 fn skip_test() {
   let results = run_tests!("./examples/skip_test.py");
 
-  assert_eq!(results.len(), 3);
+  assert_eq!(results.len(), 4);
   assert!(results.iter().all(|x| x.outcome == Outcome::Skip))
 }
 
