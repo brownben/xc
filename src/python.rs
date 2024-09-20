@@ -43,7 +43,7 @@ impl Interpreter {
 
       if let Ok(virtual_enviroment) = env::var("VIRTUAL_ENV") {
         virtual_enviroment_path = WideCString::from_str(&virtual_enviroment).unwrap();
-        config.assume_init_mut().prefix = virtual_enviroment_path.as_mut_ptr();
+        config.assume_init_mut().prefix = virtual_enviroment_path.as_mut_ptr().cast();
       }
 
       ffi::Py_InitializeFromConfig(ptr::from_mut(config.assume_init_mut()));
@@ -239,7 +239,13 @@ impl PyObject {
 
   /// Assume is a Long, and get the value
   pub fn get_long(self) -> i32 {
+    #[allow(
+      clippy::useless_conversion,
+      reason = "`clong` is i32 on windows, i64 on unix"
+    )]
     unsafe { ffi::PyLong_AsLong(self.as_ptr()) }
+      .try_into()
+      .unwrap()
   }
 }
 impl Drop for PyObject {

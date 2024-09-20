@@ -21,7 +21,7 @@ fn simple_function() {
   let results = run_tests!("./examples/simple_function.py");
 
   assert_eq!(results.len(), 1);
-  assert!(results.iter().all(|x| x.outcome == Outcome::Pass))
+  assert!(results.iter().all(|x| x.outcome == Outcome::Pass));
 }
 
 #[test]
@@ -29,7 +29,7 @@ fn simple_method() {
   let results = run_tests!("./examples/simple_method.py");
 
   assert_eq!(results.len(), 3);
-  assert!(results.iter().all(|x| x.outcome == Outcome::Pass))
+  assert!(results.iter().all(|x| x.outcome == Outcome::Pass));
 }
 
 #[test]
@@ -37,7 +37,7 @@ fn test_times() {
   let results = run_tests!("./examples/test_times.py");
 
   assert_eq!(results.len(), 5);
-  assert!(results.iter().all(|x| x.outcome == Outcome::Pass))
+  assert!(results.iter().all(|x| x.outcome == Outcome::Pass));
 }
 
 #[test]
@@ -62,7 +62,7 @@ fn skip_test() {
   let results = run_tests!("./examples/skip_test.py");
 
   assert_eq!(results.len(), 4);
-  assert!(results.iter().all(|x| x.outcome == Outcome::Skip))
+  assert!(results.iter().all(|x| x.outcome == Outcome::Skip));
 }
 
 #[test]
@@ -108,7 +108,7 @@ fn invalid_method() {
   assert_eq!(results.len(), 1);
   assert!(results.iter().all(|x| x.outcome == Outcome::Fail));
 
-  let error = results.get(0).unwrap().error.as_ref().unwrap();
+  let error = results.first().unwrap().error.as_ref().unwrap();
   assert_eq!(error.kind, "TypeError");
   assert_eq!(
     error.message,
