@@ -94,7 +94,7 @@ fn summary(summary: &TestSummary) {
   }
 
   eprint!(", {} ", summary.skipped.bold());
-  eprint!("{}", "skipped".bold().green());
+  eprint!("{}", "skipped".bold().yellow());
 
   eprintln!();
 }
