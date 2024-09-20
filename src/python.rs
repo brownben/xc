@@ -67,7 +67,7 @@ impl Drop for Interpreter {
 /// Represents a Python Subinterpreter (An interpreter for a specific thread)
 pub struct SubInterpreter {
   interpreter_state: *mut ffi::PyThreadState,
-  coverage: Option<coverage::TraceObject>,
+  coverage_trace_object: Option<PyObject>,
 }
 impl SubInterpreter {
   /// The default configuration to create a Subinterpreter with it's own global interpreter lock
@@ -94,25 +94,28 @@ impl SubInterpreter {
 
     Self {
       interpreter_state,
-      coverage: None,
+      coverage_trace_object: None,
     }
   }
 
   pub fn enable_coverage(&mut self) {
     unsafe { ffi::PyEval_RestoreThread(self.interpreter_state) };
 
-    let stdlib_path = get_standard_library_path();
-    self.coverage = Some(coverage::TraceObject::new(stdlib_path));
-
-    let coverage = ptr::from_mut(self.coverage.as_mut().unwrap()).cast();
-    unsafe { ffi::PyEval_SetTrace(Some(coverage::trace_function), coverage) };
+    self.coverage_trace_object = Some(coverage::enable_collection());
 
     self.interpreter_state = unsafe { ffi::PyEval_SaveThread() };
   }
 
   pub fn get_coverage(&mut self) -> Option<coverage::Lines> {
-    let coverage = mem::take(&mut self.coverage);
-    coverage.map(coverage::TraceObject::finish)
+    unsafe { ffi::PyEval_RestoreThread(self.interpreter_state) };
+
+    let result = mem::take(&mut self.coverage_trace_object)
+      .as_ref()
+      .map(coverage::get_executed_lines);
+
+    self.interpreter_state = unsafe { ffi::PyEval_SaveThread() };
+
+    result
   }
 
   /// Loads the subinterpreter into the current thread, runs the given function,
@@ -218,13 +221,25 @@ impl PyObject {
   }
 
   /// Convert the object to an iterator
-  pub fn as_iterator(&self) -> Result<PyObject, Error> {
+  pub fn into_iter(self) -> impl Iterator<Item = PyObject> {
     unsafe { Self::new(ffi::PyObject_GetIter(self.as_ptr())) }
+      .unwrap()
+      .iter()
   }
 
   /// Is the object a code object?
   pub fn is_code_object(&self) -> bool {
     unsafe { ffi::PyCode_Check(self.as_ptr()) == 1 }
+  }
+
+  /// Assume is a tuple, and get the item at the given index
+  pub fn get_tuple_item(&self, index: isize) -> Result<PyObject, Error> {
+    unsafe { Self::new(ffi::PyTuple_GET_ITEM(self.as_ptr(), index)) }
+  }
+
+  /// Assume is a Long, and get the value
+  pub fn get_long(self) -> i32 {
+    unsafe { ffi::PyLong_AsLong(self.as_ptr()) }
   }
 }
 impl Drop for PyObject {
@@ -368,7 +383,7 @@ pub fn execute_file(file: &path::Path) -> Result<PyObject, Error> {
 }
 
 /// Execute a string of python code as a module
-fn execute_string(string: &CStr) -> Result<PyObject, Error> {
+pub(crate) fn execute_string(string: &CStr) -> Result<PyObject, Error> {
   let filename = c"<xc internals>";
 
   unsafe {
@@ -523,17 +538,4 @@ stderr = sys.stderr.getvalue()
   let stderr = module.get_attr_cstr(c"stderr").expect("var to exist");
 
   (stdout.to_string(), stderr.to_string())
-}
-
-/// Get the path to the standard library
-///
-/// This is used to exclude the standard library from coverage. The `os` module is the
-/// only module which has the `__file__` attribute.
-fn get_standard_library_path() -> String {
-  unsafe {
-    let os_module = PyObject::new(ffi::PyImport_ImportModule(c"os".as_ptr())).unwrap();
-    let os_module_file = os_module.get_attr_cstr(c"__file__").unwrap().to_string();
-
-    os_module_file.strip_suffix("os.py").unwrap().to_owned()
-  }
 }

@@ -70,7 +70,7 @@ pub enum OutcomeKind {
   TestNotFound,
 }
 
-/// Executes the test as described by the [`TestToRun`]
+/// Executes the test as described by the [`Test`]
 pub fn test(test: &Test) -> TestOutcome {
   TestOutcome {
     test,
