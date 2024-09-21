@@ -1,4 +1,4 @@
-use crate::json::{Outcome, TestOutput};
+use crate::output::json::{JSONTestOutput, Outcome};
 use assert_cmd::Command;
 
 macro_rules! run_tests {
@@ -6,13 +6,17 @@ macro_rules! run_tests {
     let cmd_output = Command::cargo_bin(env!("CARGO_PKG_NAME"))
       .unwrap()
       .arg($file)
-      .arg("--json")
+      .arg("--output=json")
       .arg("--no-fail-fast")
       .output()
       .unwrap();
 
     let stdout = String::from_utf8(cmd_output.stdout).unwrap();
-    serde_json::from_str::<Vec<TestOutput>>(&stdout).unwrap()
+
+    stdout
+      .lines()
+      .map(|line| serde_json::from_str::<JSONTestOutput>(&line).unwrap())
+      .collect::<Vec<JSONTestOutput>>()
   }};
 }
 

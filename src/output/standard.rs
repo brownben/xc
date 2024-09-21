@@ -1,9 +1,6 @@
-//! Print outcomes to the terminal
-
+use super::Reporter;
 use crate::{
-  coverage,
   discovery::DiscoveredTests,
-  json,
   run::{OutcomeKind, TestOutcome},
   TestSummary,
 };
@@ -11,27 +8,79 @@ use crate::{
 use anstream::eprintln;
 use indicatif::{ProgressBar, ProgressStyle};
 use owo_colors::{OwoColorize, Style};
-use std::{collections::BTreeSet, fmt, io, time::Duration};
+use std::{
+  fmt,
+  io::{self, BufWriter, Write},
+  time::Duration,
+};
 
-pub fn heading(python_version: &str) {
-  eprint!("{}", "xc 🏃".bold().blue());
-  eprintln!("{}", format!(" (Python {python_version})").dimmed());
+pub struct ProgressReporter {
+  progress_bar: ProgressBar,
+}
+impl ProgressReporter {
+  pub fn new() -> Self {
+    Self {
+      progress_bar: ProgressBar::hidden(),
+    }
+  }
+  fn create_progress_bar(&mut self, length: usize) {
+    let length = length.try_into().unwrap();
+
+    let template = "{prefix:>10} [{elapsed:>9.3}] {wide_bar} {pos:>6}/{len:6}";
+    let progress_bar_style = ProgressStyle::with_template(template).unwrap();
+
+    self.progress_bar = ProgressBar::new(length).with_style(progress_bar_style);
+    self
+      .progress_bar
+      .enable_steady_tick(Duration::from_millis(250));
+  }
+}
+impl Reporter for ProgressReporter {
+  fn initialize(&mut self, python_version: String) {
+    eprint!("{}", "xc 🏃".bold().blue());
+    eprintln!("{}", format!(" (Python {python_version})").dimmed());
+  }
+
+  fn discovered(&mut self, discovered: &DiscoveredTests) {
+    eprintln!(
+      "   Found {} tests from {} files in {:.2}s",
+      discovered.tests.len().bold(),
+      discovered.file_count.bold(),
+      discovered.duration.as_secs_f64()
+    );
+
+    self.create_progress_bar(discovered.test_count);
+  }
+
+  fn result(&self, result: &TestOutcome) {
+    self.progress_bar.suspend(|| {
+      // Buffer test output, so multiple threads don't interfere
+      let mut w = BufWriter::new(io::stderr());
+      test_result(&mut w, result).unwrap();
+      w.flush().unwrap();
+    });
+    self.progress_bar.inc(1);
+  }
+
+  fn fail_fast_error(&self, result: &TestOutcome) {
+    self.progress_bar.finish_and_clear();
+
+    error(result).unwrap();
+  }
+
+  fn summary(&mut self, summary: &TestSummary) {
+    self.progress_bar.finish_and_clear();
+
+    summary_heading(summary);
+    for result in &summary.tests {
+      if result.is_fail() {
+        error(result).unwrap();
+      }
+    }
+  }
 }
 
-pub fn discovery(tests: &DiscoveredTests) {
-  eprintln!(
-    "   Found {} tests from {} files in {:.2}s",
-    tests.tests.len().bold(),
-    tests.file_count.bold(),
-    tests.duration.as_secs_f64()
-  );
-}
-
-pub fn test_result(test: &TestOutcome) -> io::Result<()> {
-  // Buffer the output so it is all written at once, and not broken by different threads
-  use io::Write;
-  let mut w = io::BufWriter::new(io::stderr());
-
+fn test_result(w: &mut dyn io::Write, test: &TestOutcome) -> io::Result<()> {
   match &test.outcome {
     OutcomeKind::Skip { .. } => write!(w, "{:>10} ", "SKIP".bold().yellow())?,
     OutcomeKind::Pass { .. } => write!(w, "{:>10} ", "PASS".bold().green())?,
@@ -52,28 +101,10 @@ pub fn test_result(test: &TestOutcome) -> io::Result<()> {
   }
   write!(w, "{}", test.name().bold().blue())?;
 
-  writeln!(w)?;
-
-  w.flush()
+  writeln!(w)
 }
 
-pub fn results_summary(results: &TestSummary) {
-  summary(results);
-  for result in &results.tests {
-    if result.is_fail() {
-      error(result).unwrap();
-    }
-  }
-}
-
-pub fn json_results(results: &TestSummary) {
-  let stdout = io::stdout().lock();
-  let output: Vec<_> = results.tests.iter().map(json::TestOutput::from).collect();
-
-  serde_json::to_writer(stdout, &output).unwrap();
-}
-
-fn summary(summary: &TestSummary) {
+fn summary_heading(summary: &TestSummary) {
   let summary_style = match () {
     () if summary.run() == 0 => Style::new().bold().yellow(),
     () if summary.failed == 0 => Style::new().bold().green(),
@@ -99,11 +130,10 @@ fn summary(summary: &TestSummary) {
   eprintln!();
 }
 
-pub fn error(test: &TestOutcome) -> io::Result<()> {
+fn error(test: &TestOutcome) -> io::Result<()> {
   debug_assert!(test.is_fail());
 
-  use io::Write;
-  let mut w = io::BufWriter::new(io::stderr());
+  let mut w = BufWriter::new(io::stderr());
 
   write!(w, "\n{}", "FAIL: ".bold().red())?;
   if let Some(ref suite) = test.suite() {
@@ -131,7 +161,7 @@ pub fn error(test: &TestOutcome) -> io::Result<()> {
   writeln!(w, "{}: {}\n", error.kind.bold(), error.message)?;
 
   if let Some(traceback) = &error.traceback {
-    print_frame(
+    frame(
       &mut w,
       "Traceback",
       traceback.frames.iter().map(|frame| {
@@ -146,16 +176,16 @@ pub fn error(test: &TestOutcome) -> io::Result<()> {
   }
 
   if !error.stdout.is_empty() {
-    print_frame(&mut w, "Stdout", error.stdout.lines())?;
+    frame(&mut w, "Stdout", error.stdout.lines())?;
   }
   if !error.stderr.is_empty() {
-    print_frame(&mut w, "Stderr", error.stderr.lines())?;
+    frame(&mut w, "Stderr", error.stderr.lines())?;
   }
 
   w.flush()
 }
 
-fn print_frame(
+fn frame(
   w: &mut dyn io::Write,
   title: &str,
   body: impl Iterator<Item = impl fmt::Display>,
@@ -171,48 +201,4 @@ fn print_frame(
     writeln!(w, "{}  {line}", "│".dimmed())?;
   }
   writeln!(w, "{}", "╰─".dimmed())
-}
-
-pub fn create_progress_bar(length: usize) -> ProgressBar {
-  let length = length.try_into().unwrap();
-
-  let template = "{prefix:>10} [{elapsed:>9.3}] {wide_bar} {pos:>6}/{len:6}";
-  let progress_bar_style = ProgressStyle::with_template(template).unwrap();
-
-  let progress_bar = ProgressBar::new(length).with_style(progress_bar_style);
-  progress_bar.enable_steady_tick(Duration::from_millis(250));
-
-  progress_bar
-}
-
-pub fn coverage_summary(possible: &coverage::Lines, executed: &coverage::Lines) {
-  let empty = BTreeSet::new();
-
-  eprintln!("\n{}{}", "╭─ ".dimmed(), "Coverage".bold());
-  eprintln!(
-    "{}{:55} {}",
-    "│  ".dimmed(),
-    "File".dimmed().italic(),
-    "Lines    Missed  Coverage".dimmed().italic(),
-  );
-
-  for (file_name, possible_lines) in possible.iter() {
-    let executed_lines = executed.get_lines(file_name).unwrap_or(&empty);
-    let covered_lines = possible_lines.intersection(executed_lines).count();
-    let total_lines = possible_lines.len();
-    let missed_lines = total_lines - covered_lines;
-
-    #[expect(clippy::cast_precision_loss, reason = "line numbers < f64::MAX")]
-    let coverage = (covered_lines as f64 / total_lines as f64) * 100.0;
-
-    eprintln!(
-      "{}{:55}{:6}{:>10}{:>9.1}%",
-      "├─ ".dimmed(),
-      file_name,
-      total_lines,
-      missed_lines,
-      coverage,
-    );
-  }
-  eprintln!("{}", "╰──".dimmed());
 }

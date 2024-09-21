@@ -191,3 +191,38 @@ fn get_line_numbers_from_code_object(
 
   Ok(())
 }
+
+pub fn print_summary(possible: &Lines, executed: &Lines) {
+  use anstream::eprintln;
+  use owo_colors::OwoColorize;
+
+  let empty = BTreeSet::new();
+
+  eprintln!("\n{}{}", "╭─ ".dimmed(), "Coverage".bold());
+  eprintln!(
+    "{}{:55} {}",
+    "│  ".dimmed(),
+    "File".dimmed().italic(),
+    "Lines    Missed  Coverage".dimmed().italic(),
+  );
+
+  for (file_name, possible_lines) in possible.iter() {
+    let executed_lines = executed.get_lines(file_name).unwrap_or(&empty);
+    let covered_lines = possible_lines.intersection(executed_lines).count();
+    let total_lines = possible_lines.len();
+    let missed_lines = total_lines - covered_lines;
+
+    #[expect(clippy::cast_precision_loss, reason = "line numbers < f64::MAX")]
+    let coverage = (covered_lines as f64 / total_lines as f64) * 100.0;
+
+    eprintln!(
+      "{}{:55}{:6}{:>10}{:>9.1}%",
+      "├─ ".dimmed(),
+      file_name,
+      total_lines,
+      missed_lines,
+      coverage,
+    );
+  }
+  eprintln!("{}", "╰──".dimmed());
+}

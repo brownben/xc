@@ -4,8 +4,7 @@
 
 mod coverage;
 mod discovery;
-mod json;
-mod print;
+mod output;
 mod python;
 mod run;
 
@@ -38,9 +37,9 @@ struct Args {
   #[clap(long, default_value_t = false)]
   pub no_fail_fast: bool,
 
-  /// Output results as JSON to stdout
-  #[clap(long, default_value_t = false)]
-  pub json: bool,
+  /// How test results should be reported
+  #[clap(long, value_enum, default_value_t = OutputFormat::Standard)]
+  pub output: OutputFormat,
 }
 
 #[derive(clap::Args, Debug)]
@@ -68,19 +67,28 @@ struct CoverageArgs {
   pub exclude: Vec<std::path::PathBuf>,
 }
 
+#[derive(Copy, Clone, Default, Debug, clap::ValueEnum)]
+enum OutputFormat {
+  /// The standard output format to the terminal
+  #[default]
+  Standard,
+  /// Output each test as a JSON object on a new line
+  Json,
+}
+
 fn main() -> ExitCode {
   let args = Args::parse();
-  print::heading(&python::version());
+  let mut reporter = output::new_reporter(args.output);
+  reporter.initialize(python::version());
 
   // Discover tests
   let discovered = discovery::find_tests(&args.paths, &args.exclude);
-  print::discovery(&discovered);
+  reporter.discovered(&discovered);
 
   // Main Python interpreter must be initialized in the main thread
   let _interpreter = python::Interpreter::initialize();
 
   // Run tests
-  let progress_bar = print::create_progress_bar(discovered.test_count);
   let results: TestSummary = discovered
     .tests
     .par_iter()
@@ -97,23 +105,17 @@ fn main() -> ExitCode {
       (outcome, coverage)
     })
     .inspect(|(outcome, _coverage)| {
-      progress_bar.suspend(|| print::test_result(outcome).unwrap());
-      progress_bar.inc(1);
+      reporter.result(outcome);
 
       if !args.no_fail_fast && outcome.is_fail() {
-        progress_bar.finish_and_clear();
-        print::error(outcome).unwrap();
+        reporter.fail_fast_error(outcome);
         process::exit(1);
       }
     })
     .collect();
-  progress_bar.finish_and_clear();
 
   // Report results
-  print::results_summary(&results);
-  if args.json {
-    print::json_results(&results);
-  };
+  reporter.summary(&results);
 
   let successful = results.failed == 0 && results.passed > 0;
 
@@ -130,7 +132,7 @@ fn main() -> ExitCode {
     };
 
     let possible_lines = coverage::get_executable_lines(coverage_include, coverage_exclude);
-    print::coverage_summary(&possible_lines, &results.executed_lines);
+    coverage::print_summary(&possible_lines, &results.executed_lines);
   }
 
   if successful {
