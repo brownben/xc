@@ -23,21 +23,49 @@ use std::{
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-  /// List of files or directories to test [default: .]
+  /// List of files or directories to test
   #[clap(default_value = ".")]
   pub paths: Vec<std::path::PathBuf>,
+
+  /// List of files or directories to exclude from testing
+  #[clap(long, value_name = "FILE_PATTERN")]
+  pub exclude: Vec<std::path::PathBuf>,
+
+  #[clap(flatten)]
+  pub coverage: CoverageArgs,
 
   /// Don't stop executing tests after one has failed
   #[clap(long, default_value_t = false)]
   pub no_fail_fast: bool,
 
-  /// Calculate coverage information for the tests
-  #[clap(long, default_value_t = false)]
-  pub coverage: bool,
-
   /// Output results as JSON to stdout
   #[clap(long, default_value_t = false)]
   pub json: bool,
+}
+
+#[derive(clap::Args, Debug)]
+struct CoverageArgs {
+  /// Enable line coverage gathering and reporting
+  #[clap(long = "coverage", default_value_t = false)]
+  pub enabled: bool,
+
+  /// List of paths, used to determine files to report coverage for
+  #[clap(
+    name = "coverage-include",
+    long = "coverage-include",
+    value_name = "FILE_PATTERN",
+    help_heading = "Coverage"
+  )]
+  pub include: Vec<std::path::PathBuf>,
+
+  /// List of paths, used to omit files and/or directories from coverage reporting
+  #[clap(
+    name = "coverage-exclude",
+    long = "coverage-exclude",
+    value_name = "FILE_PATTERN",
+    help_heading = "Coverage"
+  )]
+  pub exclude: Vec<std::path::PathBuf>,
 }
 
 fn main() -> ExitCode {
@@ -45,7 +73,7 @@ fn main() -> ExitCode {
   print::heading(&python::version());
 
   // Discover tests
-  let discovered = discovery::find_tests(&args.paths);
+  let discovered = discovery::find_tests(&args.paths, &args.exclude);
   print::discovery(&discovered);
 
   // Main Python interpreter must be initialized in the main thread
@@ -59,7 +87,7 @@ fn main() -> ExitCode {
     .map(|test| {
       let mut subinterpreter = python::SubInterpreter::new();
 
-      if args.coverage {
+      if args.coverage.enabled {
         subinterpreter.enable_coverage();
       }
 
@@ -89,8 +117,19 @@ fn main() -> ExitCode {
 
   let successful = results.failed == 0 && results.passed > 0;
 
-  if args.coverage && successful {
-    let possible_lines = coverage::get_executable_lines(&args.paths);
+  if args.coverage.enabled && successful {
+    let coverage_include = if args.coverage.include.is_empty() {
+      &args.paths
+    } else {
+      &args.coverage.include
+    };
+    let coverage_exclude = if args.coverage.exclude.is_empty() {
+      &args.exclude
+    } else {
+      &args.coverage.exclude
+    };
+
+    let possible_lines = coverage::get_executable_lines(coverage_include, coverage_exclude);
     print::coverage_summary(&possible_lines, &results.executed_lines);
   }
 

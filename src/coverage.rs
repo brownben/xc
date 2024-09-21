@@ -102,23 +102,46 @@ impl FromIterator<(String, BTreeSet<i32>)> for Lines {
 /// The compiled bytecode contains this information. Empty lines for example will
 /// not be reported but are still executed. So we need to find which lines could be run,
 /// rather than just the range of the file.
-pub fn get_executable_lines(paths: &[path::PathBuf]) -> Lines {
-  let (first_path, rest_paths) = paths.split_first().expect("at least one path to search");
+pub fn get_executable_lines(
+  coverage_include: &[path::PathBuf],
+  coverage_exclude: &[path::PathBuf],
+) -> Lines {
+  let (first_path, rest_paths) = coverage_include
+    .split_first()
+    .expect("at least one path to search");
 
-  // Create the `WalkBuilder`.
+  // Create the `WalkBuilder`, respecting .gitignore
   let mut builder = ignore::WalkBuilder::new(first_path);
+  builder.standard_filters(true);
+
+  // Only look for Python files
+  let mut types = ignore::types::TypesBuilder::new();
+  types.add("python", "*.py").unwrap();
+  types.select("python");
+  builder.types(types.build().unwrap());
+
+  // Add the paths to search
   for path in rest_paths {
     builder.add(path);
   }
-  builder.standard_filters(true);
 
+  // Exclude specified from the search
+  let mut exclude_override = ignore::overrides::OverrideBuilder::new("");
+  for path in coverage_exclude {
+    exclude_override
+      .add(&format!("!{}", path.to_string_lossy()))
+      .unwrap();
+  }
+  builder.overrides(exclude_override.build().unwrap());
+
+  // Run the search
   builder
     .build()
     .par_bridge()
     .map(|path| {
       let path = path.ok()?.into_path();
 
-      if !path.is_file() || path.extension().unwrap_or_default() != "py" {
+      if !path.is_file() {
         return None;
       }
 

@@ -85,14 +85,11 @@ impl DiscoveredTests {
 /// Given a set of initial paths to search, get all the tests in those files.
 ///
 /// Files are searched in parallel, and respect .gitignore
-pub fn find_tests(paths: &[PathBuf]) -> DiscoveredTests {
+pub fn find_tests(paths: &[PathBuf], exclude: &[PathBuf]) -> DiscoveredTests {
   let (first_path, rest_paths) = paths.split_first().expect("at least one path to search");
 
-  // Create the `WalkBuilder`.
+  // Create the `WalkBuilder`, respecting .gitignore, and searching in parallel
   let mut builder = ignore::WalkBuilder::new(first_path);
-  for path in rest_paths {
-    builder.add(path);
-  }
   builder.standard_filters(true);
   builder.threads(
     thread::available_parallelism()
@@ -100,6 +97,27 @@ pub fn find_tests(paths: &[PathBuf]) -> DiscoveredTests {
       .unwrap_or(1),
   );
 
+  // Only look for Python files
+  let mut types = ignore::types::TypesBuilder::new();
+  types.add("python", "*.py").unwrap();
+  types.select("python");
+  builder.types(types.build().unwrap());
+
+  // Add the paths to search
+  for path in rest_paths {
+    builder.add(path);
+  }
+
+  // Exclude specified from the search
+  let mut exclude_override = ignore::overrides::OverrideBuilder::new("");
+  for path in exclude {
+    exclude_override
+      .add(&format!("!{}", path.to_string_lossy()))
+      .unwrap();
+  }
+  builder.overrides(exclude_override.build().unwrap());
+
+  // Run the search
   let state: Mutex<DiscoveredTests> = Mutex::new(DiscoveredTests::new());
   let mut local_file_builder = TestFinderBuilder { global: &state };
   let walker = builder.build_parallel();
@@ -176,7 +194,7 @@ impl ignore::ParallelVisitor for TestFinder<'_> {
     if let Ok(path) = entry {
       let path = path.path();
 
-      if path.is_file() && path.extension().unwrap_or_default() == "py" {
+      if path.is_file() {
         self.file_count += 1;
         get_test_methods(path, &mut self.tests);
       }
