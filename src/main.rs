@@ -16,8 +16,7 @@ use clap::Parser;
 use rayon::prelude::*;
 use run::TestOutcome;
 use std::{
-  process::ExitCode,
-  sync::atomic::{AtomicBool, Ordering::Relaxed},
+  process::{self, ExitCode},
   time::{Duration, Instant},
 };
 
@@ -54,8 +53,7 @@ fn main() -> ExitCode {
 
   // Run tests
   let progress_bar = print::create_progress_bar(discovered.test_count);
-  let seen_failed_test = AtomicBool::new(false);
-  let mut results: TestSummary = discovered
+  let results: TestSummary = discovered
     .tests
     .par_iter()
     .map(|test| {
@@ -70,29 +68,18 @@ fn main() -> ExitCode {
 
       (outcome, coverage)
     })
-    .map(|(outcome, coverage)| {
-      if args.no_fail_fast {
-        return Some((outcome, coverage));
-      }
-
-      if seen_failed_test.load(Relaxed) {
-        return None;
-      }
-
-      if outcome.is_fail() {
-        seen_failed_test.store(true, Relaxed);
-      }
-
-      Some((outcome, coverage))
-    })
-    .while_some()
-    .inspect(|(result, _coverage)| {
-      progress_bar.suspend(|| print::test_result(result).unwrap());
+    .inspect(|(outcome, _coverage)| {
+      progress_bar.suspend(|| print::test_result(outcome).unwrap());
       progress_bar.inc(1);
+
+      if !args.no_fail_fast && outcome.is_fail() {
+        progress_bar.finish_and_clear();
+        print::error(outcome).unwrap();
+        process::exit(1);
+      }
     })
     .collect();
   progress_bar.finish_and_clear();
-  results.set_total_number_of_tests(discovered.test_count);
 
   // Report results
   print::results_summary(&results);
@@ -130,13 +117,6 @@ impl TestSummary<'_> {
   #[must_use]
   pub fn run(&self) -> usize {
     self.passed + self.failed
-  }
-
-  /// Ensure that the number of skipped tests includes those skipped by fail fast
-  pub fn set_total_number_of_tests(&mut self, total: usize) {
-    if self.run() + self.skipped < total {
-      self.skipped = total - self.run();
-    }
   }
 }
 impl<'tests> FromParallelIterator<(TestOutcome<'tests>, Option<coverage::Lines>)>

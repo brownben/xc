@@ -61,7 +61,7 @@ pub fn results_summary(results: &TestSummary) {
   summary(results);
   for result in &results.tests {
     if result.is_fail() {
-      error(result);
+      error(result).unwrap();
     }
   }
 }
@@ -99,37 +99,40 @@ fn summary(summary: &TestSummary) {
   eprintln!();
 }
 
-fn error(test: &TestOutcome) {
+pub fn error(test: &TestOutcome) -> io::Result<()> {
   debug_assert!(test.is_fail());
 
-  eprint!("\n{}", "FAIL: ".bold().red());
+  use io::Write;
+  let mut w = io::BufWriter::new(io::stderr());
+
+  write!(w, "\n{}", "FAIL: ".bold().red())?;
   if let Some(ref suite) = test.suite() {
-    eprint!("{}.", suite.red());
+    write!(w, "{}.", suite.red())?;
   }
-  eprint!("{}", test.name().red());
-  eprintln!(
+  write!(w, "{}", test.name().red())?;
+  writeln!(
+    w,
     " {}{}{}",
     "(".dimmed(),
     test.file().display().cyan(),
     ")".dimmed()
-  );
+  )?;
 
   if let OutcomeKind::ExpectedFailure { .. } = test.outcome {
     let message = "Expected test to fail, but it passed";
-    eprintln!("{}: {message}\n", "ExpectedFailure".bold());
-    return;
+    return writeln!(w, "{}: {message}\n", "ExpectedFailure".bold());
   }
   if let OutcomeKind::TestNotFound = test.outcome {
     let message = "Could not find test. This is likely a problem in testy.";
-    eprintln!("{}: {message}\n", "TestNotFound".bold());
-    return;
+    return writeln!(w, "{}: {message}\n", "TestNotFound".bold());
   }
 
   let error = test.error().expect("variants without error handled");
-  eprintln!("{}: {}\n", error.kind.bold(), error.message);
+  writeln!(w, "{}: {}\n", error.kind.bold(), error.message)?;
 
   if let Some(traceback) = &error.traceback {
     print_frame(
+      &mut w,
       "Traceback",
       traceback.frames.iter().map(|frame| {
         format!(
@@ -139,28 +142,35 @@ fn error(test: &TestOutcome) {
           frame.line.dimmed(),
         )
       }),
-    );
+    )?;
   }
 
   if !error.stdout.is_empty() {
-    print_frame("Stdout", error.stdout.lines());
+    print_frame(&mut w, "Stdout", error.stdout.lines())?;
   }
   if !error.stderr.is_empty() {
-    print_frame("Stderr", error.stderr.lines());
+    print_frame(&mut w, "Stderr", error.stderr.lines())?;
   }
+
+  w.flush()
 }
 
-fn print_frame(title: &str, body: impl Iterator<Item = impl fmt::Display>) {
-  eprintln!(
+fn print_frame(
+  w: &mut dyn io::Write,
+  title: &str,
+  body: impl Iterator<Item = impl fmt::Display>,
+) -> io::Result<()> {
+  writeln!(
+    w,
     "{}{}{}",
     "╭─ ".dimmed(),
     title.bold().dimmed(),
     ":".dimmed()
-  );
+  )?;
   for line in body {
-    eprintln!("{}  {line}", "│".dimmed());
+    writeln!(w, "{}  {line}", "│".dimmed())?;
   }
-  eprintln!("{}", "╰─".dimmed());
+  writeln!(w, "{}", "╰─".dimmed())
 }
 
 pub fn create_progress_bar(length: usize) -> ProgressBar {
