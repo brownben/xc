@@ -238,8 +238,12 @@ impl PyObject {
   }
 
   /// Assume is a tuple, and get the item at the given index
-  pub fn get_tuple_item(&self, index: isize) -> Result<PyObject, Error> {
-    unsafe { Self::new(ffi::PyTuple_GET_ITEM(self.as_ptr(), index)) }
+  pub fn get_tuple_item(&self, index: isize) -> PyObject {
+    let result = unsafe { ffi::PyTuple_GetItem(self.as_ptr(), index) };
+    let pointer = unsafe { ptr::NonNull::new_unchecked(result) };
+
+    PyObject(pointer)
+  }
   }
 
   /// Assume is a Long, and get the value
