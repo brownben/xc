@@ -28,10 +28,9 @@ pub fn get_executed_lines(tracer_object: &PyObject) -> Lines {
     filename_line_pairs
       .into_iter()
       .map(|tuple| {
-        let filename = tuple.get_tuple_item(0).unwrap().to_string();
+        let filename = tuple.get_tuple_item(0).to_string();
         let lines = tuple
           .get_tuple_item(1)
-          .unwrap()
           .into_iter()
           .map(PyObject::get_long)
           .collect();
@@ -185,7 +184,7 @@ fn get_line_numbers_from_code_object(
   line_numbers.extend(
     iterator_lines
       .iter()
-      .map(|line_tuple| line_tuple.get_tuple_item(2).unwrap().get_long())
+      .map(|line_tuple| line_tuple.get_tuple_item(2).get_long())
       .filter(|line_number| *line_number > 0),
   );
 
