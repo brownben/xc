@@ -22,7 +22,9 @@ class Tracer:
 
     def line_callback(self, code_object, line_number):
         if id(code_object) in self.trace:
-            self.lines[code_object.co_filename].add(line_number)
+            lines = self.lines.get(code_object.co_filename)
+            if lines:
+                lines.add(line_number)
             return sys.monitoring.DISABLE
 
         if Tracer.should_trace_file(code_object.co_filename):
@@ -36,6 +38,7 @@ class Tracer:
 
     def get_lines(self):
         return dict(self.lines)
+
 
 tracer = Tracer()
 
