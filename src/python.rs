@@ -237,6 +237,11 @@ impl PyObject {
     unsafe { ffi::PyCode_Check(self.as_ptr()) == 1 }
   }
 
+  /// Assume is a tuple, and get the size of the tuple
+  pub fn tuple_size(&self) -> isize {
+    unsafe { ffi::PyTuple_Size(self.as_ptr()) }
+  }
+
   /// Assume is a tuple, and get the item at the given index
   pub fn get_tuple_item(&self, index: isize) -> PyObject {
     let result = unsafe { ffi::PyTuple_GetItem(self.as_ptr(), index) };
@@ -244,6 +249,16 @@ impl PyObject {
 
     PyObject(pointer)
   }
+
+  /// Assume is a dict, and get the item with the given key
+  pub fn get_dict_item(&self, key: &CStr) -> Option<PyObject> {
+    let result = unsafe { ffi::PyDict_GetItemString(self.as_ptr(), key.as_ptr()) };
+
+    if result.is_null() {
+      None
+    } else {
+      Some(PyObject::new(result).unwrap())
+    }
   }
 
   /// Assume is a Long, and get the value
@@ -255,6 +270,11 @@ impl PyObject {
     unsafe { ffi::PyLong_AsLong(self.as_ptr()) }
       .try_into()
       .unwrap()
+  }
+
+  /// Is the object truthy?
+  pub fn is_truthy(&self) -> bool {
+    unsafe { ffi::PyObject_IsTrue(self.as_ptr()) == 1 }
   }
 }
 impl fmt::Display for PyObject {

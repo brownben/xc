@@ -163,6 +163,7 @@ fn test_function(test: &Test) -> OutcomeKind {
 fn has_skip_annotation(object: &PyObject) -> Option<String> {
   const SKIP_ATTRIBUTE: &CStr = c"__unittest_skip__";
   const SKIP_REASON_ATTRIBUTE: &CStr = c"__unittest_skip_why__";
+  const PYTEST_MARK: &CStr = c"pytestmark";
 
   if object.has_truthy_attr(SKIP_ATTRIBUTE) {
     let reason = object
@@ -170,16 +171,69 @@ fn has_skip_annotation(object: &PyObject) -> Option<String> {
       .map(|x| x.to_string())
       .unwrap_or_default();
 
-    Some(reason)
-  } else {
-    None
+    return Some(reason);
   }
+
+  if object.has_attr(PYTEST_MARK) {
+    let pytest_marks = object.get_attr_cstr(PYTEST_MARK).unwrap();
+
+    for mark in pytest_marks.into_iter() {
+      let mark_name = mark.get_attr_cstr(c"name").unwrap().to_string();
+
+      let should_skip = match mark_name.as_str() {
+        "skip" => true,
+        "skipIf" => mark
+          .get_attr_cstr(c"args")
+          .is_ok_and(|args| args.get_tuple_item(0).is_truthy()),
+        _ => false,
+      };
+
+      if should_skip {
+        if let Ok(kwargs) = mark.get_attr_cstr(c"kwargs") {
+          return Some(
+            kwargs
+              .get_dict_item(c"reason")
+              .map(|reason| reason.to_string())
+              .unwrap_or_default(),
+          );
+        }
+      }
+    }
+  }
+
+  None
 }
 
 /// Checks a [`PyObject`] for the annotation for expecting a failure
 fn is_expecting_failure(object: &PyObject) -> bool {
   const EXPECT_ERROR_ATTRIBUTE: &CStr = c"__unittest_expecting_failure__";
-  object.has_truthy_attr(EXPECT_ERROR_ATTRIBUTE)
+  const PYTEST_MARK: &CStr = c"pytestmark";
+
+  if object.has_truthy_attr(EXPECT_ERROR_ATTRIBUTE) {
+    return true;
+  }
+
+  if object.has_attr(PYTEST_MARK) {
+    let pytest_marks = object.get_attr_cstr(PYTEST_MARK).unwrap();
+
+    for mark in pytest_marks.into_iter() {
+      let mark_name = mark.get_attr_cstr(c"name").unwrap().to_string();
+
+      if mark_name == "xfail" {
+        let args = mark.get_attr_cstr(c"args").unwrap();
+
+        if args.tuple_size() > 0 {
+          let condition = args.get_tuple_item(0);
+
+          return condition.is_truthy();
+        }
+
+        return true;
+      }
+    }
+  }
+
+  false
 }
 
 fn call_optional_method(object: &PyObject, method: &CStr) -> Result<(), Error> {
