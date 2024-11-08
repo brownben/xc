@@ -145,3 +145,11 @@ fn captures_stdout() {
     "hello world\ninto stderr"
   );
 }
+
+#[test]
+fn import_decimal_module() {
+  let results = run_tests!("./examples/import_decimal.py");
+
+  assert_eq!(results.len(), 2);
+  assert!(results.iter().all(|x| x.outcome == Outcome::Pass));
+}

@@ -49,6 +49,11 @@ impl Interpreter {
       ffi::Py_InitializeFromConfig(ptr::from_mut(config.assume_init_mut()));
     }
 
+    // The decimal module crashes the interpreter if it is initialised multiple times
+    // If not initialised in the base interpreter, if a subinterpreter imports it it will crash
+    // TODO: when decimal works properly remove this hack
+    execute_string(c"import decimal").unwrap();
+
     let main_thread_state = unsafe { ffi::PyThreadState_Swap(ptr::null_mut()) };
 
     Self {
