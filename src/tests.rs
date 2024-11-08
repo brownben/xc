@@ -38,10 +38,16 @@ fn simple_method() {
 
 #[test]
 fn test_times() {
+  let start_time = std::time::Instant::now();
   let results = run_tests!("./examples/test_times.py");
+  let execution_time = start_time.elapsed();
 
   assert_eq!(results.len(), 5);
   assert!(results.iter().all(|x| x.outcome == Outcome::Pass));
+
+  // Check that the tests are run in parallel
+  let total_time = results.iter().flat_map(|result| result.time).sum();
+  assert!(execution_time < total_time);
 }
 
 #[test]
@@ -55,10 +61,16 @@ fn nested_package_import() {
 #[ignore = "takes too long"]
 #[test]
 fn long_running() {
+  let start_time = std::time::Instant::now();
   let results = run_tests!("./examples/long_running.py");
+  let execution_time = start_time.elapsed();
 
   assert_eq!(results.len(), 3);
   assert!(results.iter().all(|x| x.outcome == Outcome::Pass));
+
+  // Check that the tests are run in parallel
+  let total_time = results.iter().flat_map(|result| result.time).sum();
+  assert!(execution_time < total_time);
 }
 
 #[test]
