@@ -52,7 +52,7 @@ impl Interpreter {
     // The decimal module crashes the interpreter if it is initialised multiple times
     // If not initialised in the base interpreter, if a subinterpreter imports it it will crash
     // TODO: when decimal works properly remove this hack
-    execute_string(c"import decimal").unwrap();
+    PyObject::import_module(c"decimal").expect("decimal module to exist");
 
     let main_thread_state = unsafe { ffi::PyThreadState_Swap(ptr::null_mut()) };
 
@@ -153,6 +153,11 @@ impl PyObject {
     }
   }
 
+  pub fn import_module(module_name: &CStr) -> Result<PyObject, Error> {
+    let module = unsafe { ffi::PyImport_ImportModule(module_name.as_ptr()) };
+    Self::new(module)
+  }
+
   pub fn as_ptr(&self) -> *mut ffi::PyObject {
     self.0.as_ptr()
   }
@@ -167,11 +172,17 @@ impl PyObject {
     let attribute_name = CString::new(attribute_name).unwrap();
     self.get_attr_cstr(&attribute_name)
   }
+  /// Get the attribute of the object
   pub fn get_attr_cstr(&self, attribute_name: &CStr) -> Result<PyObject, Error> {
     let attribute_value =
       unsafe { ffi::PyObject_GetAttrString(self.as_ptr(), attribute_name.as_ptr()) };
 
     Self::new(attribute_value)
+  }
+
+  /// Set the attribute of the object
+  pub fn set_attr_cstr(&self, attribute_name: &CStr, value: &PyObject) {
+    unsafe { ffi::PyObject_SetAttrString(self.as_ptr(), attribute_name.as_ptr(), value.as_ptr()) };
   }
 
   /// Check if the object has an attribute
@@ -275,6 +286,11 @@ impl PyObject {
   /// Is the object truthy?
   pub fn is_truthy(&self) -> bool {
     unsafe { ffi::PyObject_IsTrue(self.as_ptr()) == 1 }
+  }
+
+  /// Clone the pointer without incrementing the reference count
+  pub fn local_clone(&self) -> Self {
+    Self(self.0)
   }
 }
 impl fmt::Display for PyObject {
@@ -441,12 +457,13 @@ pub(crate) fn execute_string(string: &CStr) -> Result<PyObject, Error> {
 /// Most commonly used to add the current folder to the module search path.
 /// Assumes Python Interpreter is currently active.
 fn add_to_sys_modules_path(path: &CStr) {
-  unsafe {
-    let sys_module = ffi::PyImport_ImportModule(c"sys".as_ptr());
-    let path_list = ffi::PyObject_GetAttrString(sys_module, c"path".as_ptr());
+  let sys = PyObject::import_module(c"sys").unwrap();
+  let path_list = sys.get_attr_cstr(c"path").unwrap();
 
-    ffi::PyList_Insert(path_list, 0, ffi::PyUnicode_FromString(path.as_ptr()))
-  };
+  unsafe {
+    let path_string = ffi::PyUnicode_FromString(path.as_ptr());
+    ffi::PyList_Insert(path_list.as_ptr(), 0, path_string);
+  }
 }
 
 /// Adds the given path and any parent paths which are Python files to
@@ -546,29 +563,26 @@ fn path_to_cstring(path: &path::Path) -> CString {
 ///
 /// Captured output can be fetched by [`get_captured_stdout_stderr`]
 fn capture_stdout_stderr() {
-  execute_string(
-    c"
-import io, sys
-sys.stdout = io.StringIO()
-sys.stderr = io.StringIO()
-    ",
-  )
-  .expect("code to run");
+  let sys = PyObject::import_module(c"sys").unwrap();
+  let io = PyObject::import_module(c"io").unwrap();
+
+  let string_io = io.get_attr_cstr(c"StringIO").unwrap();
+  let stdout_io = string_io.local_clone().call().unwrap();
+  let stderr_io = string_io.call().unwrap();
+
+  sys.set_attr_cstr(c"stdout", &stdout_io);
+  sys.set_attr_cstr(c"stderr", &stderr_io);
 }
 
 /// Get the captured stdout and stderr
 fn get_captured_stdout_stderr() -> (String, String) {
-  let module = execute_string(
-    c"
-import io, sys
-stdout = sys.stdout.getvalue()
-stderr = sys.stderr.getvalue()
-    ",
-  )
-  .expect("code to run");
+  let sys = PyObject::import_module(c"sys").unwrap();
 
-  let stdout = module.get_attr_cstr(c"stdout").expect("var to exist");
-  let stderr = module.get_attr_cstr(c"stderr").expect("var to exist");
+  let stdout = sys.get_attr_cstr(c"stdout").unwrap();
+  let stderr = sys.get_attr_cstr(c"stderr").unwrap();
 
-  (stdout.to_string(), stderr.to_string())
+  let stdout_value = stdout.get_attr_cstr(c"getvalue").unwrap().call().unwrap();
+  let stderr_value = stderr.get_attr_cstr(c"getvalue").unwrap().call().unwrap();
+
+  (stdout_value.to_string(), stderr_value.to_string())
 }
