@@ -1,4 +1,4 @@
-use crate::{discovery::DiscoveredTests, run::TestOutcome, OutputFormat, TestSummary};
+use crate::{config::OutputFormat, discovery::DiscoveredTests, run::TestOutcome, TestSummary};
 
 pub trait Reporter: Sync {
   fn initialize(&mut self, _python_version: String) {}
