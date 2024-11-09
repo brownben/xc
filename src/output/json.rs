@@ -48,7 +48,7 @@ impl From<&TestOutcome<'_>> for JSONTestOutput {
   fn from(test: &TestOutcome) -> Self {
     Self {
       file: test.file().to_owned(),
-      test_identifier: test.identifier(),
+      test_identifier: test.identifier().into(),
       outcome: (&test.outcome).into(),
       error: test.error().cloned(),
       time: test.time(),

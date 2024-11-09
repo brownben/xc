@@ -1,6 +1,7 @@
 //! Discover tests in Python files so they can be run later
 
 use std::{
+  borrow::Cow,
   fs,
   num::NonZero,
   path::{Path, PathBuf},
@@ -47,14 +48,16 @@ impl Test {
   }
 
   /// Get the name and suite of the test combined into a single identifier
-  pub fn identifier(&self) -> String {
-    let mut identifier = String::new();
+  pub fn identifier(&self) -> Cow<str> {
     if let Some(suite) = self.suite() {
+      let mut identifier = String::new();
       identifier.push_str(suite);
       identifier.push('.');
+      identifier.push_str(self.name());
+      identifier.into()
+    } else {
+      self.name().into()
     }
-    identifier.push_str(self.name());
-    identifier
   }
 }
 
