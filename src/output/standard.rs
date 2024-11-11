@@ -153,7 +153,7 @@ fn error(test: &TestOutcome) -> io::Result<()> {
     return writeln!(w, "{}: {message}\n", "ExpectedFailure".bold());
   }
   if let OutcomeKind::TestNotFound = test.outcome {
-    let message = "Could not find test. This is likely a problem in testy.";
+    let message = "Could not find test. This is likely a problem in xc.";
     return writeln!(w, "{}: {message}\n", "TestNotFound".bold());
   }
 
