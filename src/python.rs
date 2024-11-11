@@ -165,6 +165,8 @@ impl PyObject {
     self.0.as_ptr()
   }
   fn as_usize(&self) -> usize {
+    debug_assert!(unsafe { ffi::PyLong_CheckExact(self.as_ptr()) == 1 });
+
     unsafe { ffi::PyLong_AsLongLong(self.as_ptr()) }
       .try_into()
       .unwrap()
@@ -197,14 +199,11 @@ impl PyObject {
   pub fn has_truthy_attr(&self, attr: &CStr) -> bool {
     let has_attr = self.has_attr(attr);
 
-    if has_attr {
-      unsafe {
-        let attr = ffi::PyObject_GetAttrString(self.as_ptr(), attr.as_ptr());
-        ffi::PyObject_IsTrue(attr) == 1
-      }
-    } else {
-      false
+    if !has_attr {
+      return false;
     }
+
+    self.get_attr_cstr(attr).unwrap().is_truthy()
   }
 
   /// Call the given Object with no arguments
@@ -228,6 +227,7 @@ impl PyObject {
   /// View as an iterator, and iterate over it
   pub fn iter(&self) -> impl Iterator<Item = PyObject> {
     let iterator = self.as_ptr();
+    debug_assert!(unsafe { ffi::PyIter_Check(iterator) == 1 });
 
     iter::from_fn(move || {
       let next = unsafe { ffi::PyIter_Next(iterator) };
@@ -253,11 +253,13 @@ impl PyObject {
 
   /// Assume is a tuple, and get the size of the tuple
   pub fn tuple_size(&self) -> isize {
+    debug_assert!(unsafe { ffi::PyTuple_CheckExact(self.as_ptr()) == 1 });
     unsafe { ffi::PyTuple_Size(self.as_ptr()) }
   }
 
   /// Assume is a tuple, and get the item at the given index
   pub fn get_tuple_item(&self, index: isize) -> PyObject {
+    debug_assert!(unsafe { ffi::PyTuple_Check(self.as_ptr()) == 1 });
     let result = unsafe { ffi::PyTuple_GetItem(self.as_ptr(), index) };
     let pointer = unsafe { ptr::NonNull::new_unchecked(result) };
 
@@ -266,8 +268,8 @@ impl PyObject {
 
   /// Assume is a dict, and get the item with the given key
   pub fn get_dict_item(&self, key: &CStr) -> Option<PyObject> {
+    debug_assert!(unsafe { ffi::PyDict_CheckExact(self.as_ptr()) == 1 });
     let result = unsafe { ffi::PyDict_GetItemString(self.as_ptr(), key.as_ptr()) };
-
     if result.is_null() {
       None
     } else {
@@ -277,6 +279,8 @@ impl PyObject {
 
   /// Assume is a Long, and get the value
   pub fn get_long(self) -> i32 {
+    debug_assert!(unsafe { ffi::PyLong_CheckExact(self.as_ptr()) == 1 });
+
     #[allow(
       clippy::useless_conversion,
       reason = "`clong` is i32 on windows, i64 on unix"
@@ -314,7 +318,6 @@ impl fmt::Display for PyObject {
     }
   }
 }
-
 #[allow(unused)]
 /// An error which occurred whilst executing Python code
 #[derive(Debug, Clone, Serialize, Deserialize)]
