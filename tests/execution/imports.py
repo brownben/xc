@@ -1,4 +1,12 @@
-"""Test importing a file in the same package"""
+"""
+Test importing a file in the same package
+
+- TestParseStringToTime.test_empty_string: PASS
+- TestParseStringToTime.test_one_colon_string: PASS
+- TestParseStringToTime.test_two_colon_string: PASS
+- TestParseStringToTime.test_two_colon_string_with_hours: PASS
+- TestParseStringToTime.test_invalid_time: PASS
+"""
 
 import unittest
 

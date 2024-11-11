@@ -1,7 +1,11 @@
 """
 Import decimal module.
 
-Causes problems if the module is not first imported in the main interpreter.
+The module causes problems if it is not first imported in the main interpreter.
+Check that it is handled properly and can be used.
+
+- test_import_first: PASS
+- test_import_again: PASS
 """
 
 from decimal import Decimal

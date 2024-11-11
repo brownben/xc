@@ -1,4 +1,9 @@
-"""Expecting an error on function"""
+"""
+Expecting an error on function
+
+- test_will_fail: PASS
+- test_wont_fail: EXPECTED FAILURE
+"""
 
 import unittest
 

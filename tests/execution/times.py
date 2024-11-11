@@ -1,3 +1,8 @@
+"""
+A sample library to be used in tests
+"""
+
+
 def parse_time(time: str) -> int:
     """Parse an elapsed time string into seconds"""
     splitTime = time.split(":")

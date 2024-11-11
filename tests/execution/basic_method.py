@@ -1,4 +1,10 @@
-"""Basic test in the class/method format"""
+"""
+Basic test in the class/method format
+
+- TestStringMethods.test_upper: PASS
+- TestStringMethods.test_isupper: PASS
+- TestStringMethods.test_split: PASS
+"""
 
 import unittest
 

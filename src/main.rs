@@ -9,9 +9,6 @@ mod output;
 mod python;
 mod run;
 
-#[cfg(test)]
-mod tests;
-
 use rayon::prelude::*;
 use run::TestOutcome;
 use std::{

@@ -1,4 +1,8 @@
-"""Basic test in the function format"""
+"""
+Basic test in the function format.
+
+- test_add: PASS
+"""
 
 
 def add(a, b):
