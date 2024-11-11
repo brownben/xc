@@ -20,15 +20,6 @@ macro_rules! execution_test {
           .iter()
           .find(|result| &result.test_identifier == test_name)
         else {
-          let cmd_output = Command::cargo_bin(env!("CARGO_PKG_NAME"))
-            .unwrap()
-            .arg(test_file_path)
-            .arg("--output=json")
-            .arg("--no-fail-fast")
-            .output()
-            .unwrap();
-          println!("{cmd_output:?}");
-          println!("expected results {expected_results:?} test results {test_results:?}");
           panic!("Expected test '{test_name}' to have been run");
         };
 
@@ -103,7 +94,7 @@ fn expected_results(test_file: &str) -> HashMap<String, (Outcome, Option<ErrorAs
             "FAIL" => Outcome::Fail,
             "SKIP" => Outcome::Skip,
             "EXPECTED FAILURE" => Outcome::ExpectedFailure,
-            "NON TEST FAIL" => Outcome::NonTestFail,
+            "NON-TEST FAIL" => Outcome::NonTestFail,
             _ => panic!("Unknown Outcome: {}", outcome.trim()),
           },
           error,
@@ -177,10 +168,12 @@ execution_test!(failing_test);
 execution_test!(imports);
 execution_test!(import_submodule, "package/import_submodule");
 execution_test!(import_decimal);
-execution_test!(invalid_code);
+execution_test!(invalid_method);
+execution_test!(invalid_module);
+execution_test!(invalid_remove);
+execution_test!(isolated);
 #[cfg(feature = "ci")] // Takes a long time, so don't want it slowing down developement cycles
 execution_test!(long_running);
-#[cfg(not(feature = "ci"))] // Pytest crashes in CI, with a double free error - don't know why
-execution_test!(pytest_marks);
+execution_test!(setup_teardown);
 execution_test!(skip_tests);
 execution_test!(times); // No tests are in this file, just a standard python file

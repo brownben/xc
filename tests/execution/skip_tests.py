@@ -5,6 +5,7 @@ Skipping a test
 - TestSuite.test_skip_method: SKIP
 - TestSuiteTwo.test_skip_class: SKIP
 - skip_by_raising_an_exception_test: SKIP
+- TestSuiteThree.test_skip_by_exception: SKIP
 - test_skip_if_true: SKIP
 - test_skip_if_false: FAIL
 """
@@ -31,6 +32,11 @@ class TestSuiteTwo(unittest.TestCase):
 
 def skip_by_raising_an_exception_test():
     raise unittest.SkipTest("Skipping a function by raising")
+
+
+class TestSuiteThree(unittest.TestCase):
+    def test_skip_by_exception(self):
+        raise unittest.SkipTest("Skipping a function by raising")
 
 
 @unittest.skipIf(True, reason="To test skipping")

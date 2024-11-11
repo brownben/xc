@@ -160,7 +160,7 @@ fn get_test_methods(file: &Path, tests: &mut Vec<Test>) {
       if name.starts_with("Test") || name.ends_with("Test") || name.ends_with("Tests") {
         for statement in &class_def.body {
           if let Some(method) = statement.as_function_def_stmt() {
-            if method.name.starts_with("test") {
+            if method.name.starts_with("test") || method.name.ends_with("test") {
               tests.push(Test::Method {
                 file: file.into(),
                 class: name.to_string(),
