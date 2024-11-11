@@ -102,6 +102,7 @@ impl FromIterator<(String, BTreeSet<i32>)> for Lines {
 /// not be reported but are still executed. So we need to find which lines could be run,
 /// rather than just the range of the file.
 pub fn get_executable_lines(
+  interpreter: &python::Interpreter,
   coverage_include: &[path::PathBuf],
   coverage_exclude: &[path::PathBuf],
 ) -> Lines {
@@ -146,7 +147,7 @@ pub fn get_executable_lines(
 
       // as we are compiling python, we need an interpreter
       let line_numbers =
-        python::SubInterpreter::new().run(|| get_line_numbers_for_python_file(&path));
+        python::SubInterpreter::new(interpreter).run(|| get_line_numbers_for_python_file(&path));
 
       if line_numbers.is_empty() {
         None

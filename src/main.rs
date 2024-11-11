@@ -30,14 +30,14 @@ fn main() -> ExitCode {
   reporter.discovered(&discovered);
 
   // Main Python interpreter must be initialized in the main thread
-  let _interpreter = python::Interpreter::initialize();
+  let interpreter = python::Interpreter::initialize();
 
   // Run tests
   let results: TestSummary = discovered
     .tests
     .par_iter()
     .map(|test| {
-      let mut subinterpreter = python::SubInterpreter::new();
+      let mut subinterpreter = python::SubInterpreter::new(&interpreter);
 
       if settings.coverage.enabled {
         subinterpreter.enable_coverage();
@@ -75,7 +75,8 @@ fn main() -> ExitCode {
       &settings.coverage.exclude
     };
 
-    let possible_lines = coverage::get_executable_lines(coverage_include, coverage_exclude);
+    let possible_lines =
+      coverage::get_executable_lines(&interpreter, coverage_include, coverage_exclude);
     coverage::print_summary(&possible_lines, &results.executed_lines);
   }
 

@@ -68,6 +68,7 @@ impl Drop for Interpreter {
     unsafe { ffi::Py_FinalizeEx() };
   }
 }
+unsafe impl Sync for Interpreter {}
 
 /// Represents a Python Subinterpreter (An interpreter for a specific thread)
 pub struct SubInterpreter {
@@ -89,12 +90,14 @@ impl SubInterpreter {
   /// Creates a new subinterpreter
   ///
   /// SAFETY: The main interpreter must have been initialized
-  pub fn new() -> Self {
+  pub fn new(main: &Interpreter) -> Self {
     let mut interpreter_state = std::ptr::null_mut();
 
     unsafe {
+      ffi::PyEval_RestoreThread(main.main_thread_state); // ensure the main GIL is held
       ffi::Py_NewInterpreterFromConfig(&mut interpreter_state, &Self::DEFAULT_CONFIG);
-      ffi::PyEval_SaveThread(); // Stops Deadlock
+      ffi::PyEval_SaveThread(); // Releases the GIL of the new subinterpreter
+                                // the main GIL is released during creation
     };
 
     Self {
