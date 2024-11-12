@@ -114,9 +114,10 @@ pub fn find_tests(paths: &[PathBuf], exclude: &[PathBuf]) -> DiscoveredTests {
   // Exclude specified from the search
   let mut exclude_override = ignore::overrides::OverrideBuilder::new("");
   for path in exclude {
-    exclude_override
-      .add(&format!("!{}", path.to_string_lossy()))
-      .unwrap();
+    let path = path.to_string_lossy();
+    // Unexpected behaviour when relative paths start with "./" so remove if exists
+    let path = path.trim_matches(['.', '/']);
+    exclude_override.add(&format!("!{path}",)).unwrap();
   }
   builder.overrides(exclude_override.build().unwrap());
 
