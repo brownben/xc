@@ -406,7 +406,7 @@ impl Trackback {
 pub fn compile_file(file: &path::Path) -> Result<PyObject, Error> {
   let file = &file.canonicalize().expect("file to exist");
 
-  add_all_parent_modules_to_path(file);
+  add_parent_module_to_path(file);
   capture_stdout_stderr();
 
   let file_name: CString = filename_to_cstring(file);
@@ -472,18 +472,13 @@ fn add_to_sys_modules_path(path: &CStr) {
   }
 }
 
-/// Adds the given path and any parent paths which are Python files to
-/// Python's module resolution path variable.
-///
-/// Used to ensure that a test module can be found no matter how it is specified.
-fn add_all_parent_modules_to_path(file: &path::Path) {
-  if file.is_dir() {
-    add_to_sys_modules_path(&path_to_cstring(file));
-  }
-
-  if is_python_module(file) {
-    if let Some(parent) = file.parent() {
-      add_all_parent_modules_to_path(parent);
+/// Adds the lowest parent path which is not  python module to the module search path.
+fn add_parent_module_to_path(file: &path::Path) {
+  if let Some(parent) = file.parent() {
+    if is_python_module(parent) {
+      add_parent_module_to_path(parent);
+    } else {
+      add_to_sys_modules_path(&path_to_cstring(parent));
     }
   }
 }
