@@ -11,9 +11,6 @@ pub(crate) struct Settings {
   #[clap(long, value_name = "FILE_PATTERN")]
   pub exclude: Vec<std::path::PathBuf>,
 
-  #[clap(flatten)]
-  pub coverage: CoverageSettings,
-
   /// Don't stop executing tests after one has failed
   #[clap(long, default_value_t = false)]
   pub no_fail_fast: bool,
@@ -21,12 +18,15 @@ pub(crate) struct Settings {
   /// How test results should be reported
   #[clap(long, value_enum, default_value_t = OutputFormat::Standard)]
   pub output: OutputFormat,
+
+  #[clap(flatten)]
+  pub coverage: CoverageSettings,
 }
 
 #[derive(clap::Args, Debug, Default)]
 pub(crate) struct CoverageSettings {
   /// Enable line coverage gathering and reporting
-  #[clap(long = "coverage", default_value_t = false)]
+  #[clap(long = "coverage", default_value_t = false, help_heading = "Coverage")]
   pub enabled: bool,
 
   /// List of paths, used to determine files to report coverage for
