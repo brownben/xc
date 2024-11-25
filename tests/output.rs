@@ -117,12 +117,14 @@ fn clean_output(string: Vec<u8>) -> String {
   let python_version_regex = Regex::new(r"\(Python 3.*").unwrap();
   let windows_paths_regex = Regex::new(r"\(.*\\?:.*xc").unwrap();
   let unix_paths_regex = Regex::new(r"/home.*xc").unwrap();
+  let mac_paths_regex = Regex::new(r"/Users.*xc").unwrap();
   let windows_path_separator = Regex::new(r"\\").unwrap();
 
   let string = time_regex.replace_all(&string, "<TIME>s");
   let string = python_version_regex.replace(&string, "(Python 3)");
   let string = windows_paths_regex.replace_all(&string, "(xc");
   let string = unix_paths_regex.replace_all(&string, "xc");
+  let string = mac_paths_regex.replace_all(&string, "xc");
   let string = windows_path_separator.replace_all(&string, "/");
 
   string
