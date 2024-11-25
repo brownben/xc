@@ -1,0 +1,3 @@
+# Requirements for ./execution/dependencies.txt
+astroid
+yarl

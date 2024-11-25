@@ -49,6 +49,8 @@ jobs:
         with:
           python-version: ${{ matrix.python_version }}
           allow-prereleases: true
+      - name: Install Dependencies
+        run: pip install -r ./tests/requirements.txt
       - name: Build
         run: cargo build
       - name: Test

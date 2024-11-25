@@ -164,6 +164,7 @@ execution_test!(basic_function);
 execution_test!(basic_method);
 execution_test!(captures_stdout);
 execution_test!(expected_error);
+execution_test!(dependencies);
 execution_test!(failing_test);
 execution_test!(imports);
 execution_test!(import_submodule, "package/import_submodule");
