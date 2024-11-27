@@ -53,7 +53,7 @@ impl PyObject {
     unsafe { Self::from_ptr_unchecked(result) }
   }
   /// Set the attribute of an object
-  #[allow(clippy::needless_pass_by_value, reason = "we want to take ownership")]
+  #[expect(clippy::needless_pass_by_value, reason = "we want to take ownership")]
   pub fn set_attr(&self, attribute: &PyObject, value: PyObject) -> Result<(), PyError> {
     let result =
       unsafe { ffi::PyObject_SetAttr(self.as_ptr(), attribute.as_ptr(), value.as_ptr()) };
@@ -85,7 +85,7 @@ impl PyObject {
   /// Convert the object to an iterator
   ///
   /// SAFETY: Assumes that the object is an iterator
-  #[allow(
+  #[expect(
     clippy::wrong_self_convention,
     reason = "works better with borrowed objects"
   )]
@@ -224,6 +224,7 @@ impl PyDict {
   /// Converts a [`PyObject`] into a [`PyDict`]
   ///
   /// SAFETY: the `PyObject` must be a dict. Can be checked with [`PyObject::is_dict`]
+  #[expect(dead_code)]
   pub unsafe fn from_object_unchecked(object: PyObject) -> Self {
     Self(object)
   }
@@ -344,7 +345,6 @@ impl Deref for PyIter {
 pub struct PyTuple(PyObject);
 impl PyTuple {
   /// Converts a [`PyObject`] into a [`PyTuple`]
-  #[allow(dead_code)]
   pub fn from_object(object: PyObject) -> Option<Self> {
     object.is_tuple().then_some(Self(object))
   }
@@ -375,7 +375,6 @@ impl PyTuple {
     BorrowedPyObject::new(py_object)
   }
   /// Gets an item from a tuple
-  #[allow(dead_code)]
   pub fn get_item(&self, index: isize) -> Result<BorrowedPyObject, PyError> {
     debug_assert!(self.is_tuple());
     debug_assert!(index >= 0);

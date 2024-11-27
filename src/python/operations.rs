@@ -11,7 +11,7 @@ pub struct ActiveInterpreter {
   /// Stops other modules from accidentally creating this struct
   _private: (),
 }
-#[allow(clippy::unused_self, reason = "to ensure GIL is held")]
+#[expect(clippy::unused_self, reason = "to ensure GIL is held")]
 impl ActiveInterpreter {
   /// SAFETY: Requires the GIL to be held
   pub(crate) unsafe fn new() -> Self {
