@@ -2,8 +2,7 @@ use pyo3_ffi::{self as ffi};
 use std::{env, mem, ptr};
 use widestring::WideCString;
 
-use super::{ActiveInterpreter, PyObject};
-use crate::coverage;
+use super::ActiveInterpreter;
 
 /// Interface implemented by both [`MainInterpreter`] and [`SubInterpreter`]
 ///
@@ -82,7 +81,6 @@ unsafe impl Sync for MainInterpreter {}
 /// Represents a Python Subinterpreter (An interpreter for a specific thread)
 pub struct SubInterpreter {
   interpreter_state: *mut ffi::PyThreadState,
-  coverage_trace_object: Option<PyObject>,
 }
 impl SubInterpreter {
   /// The default configuration to create a Subinterpreter with it's own global interpreter lock
@@ -109,34 +107,7 @@ impl SubInterpreter {
                                 // the main GIL is released during creation
     };
 
-    Self {
-      interpreter_state,
-      coverage_trace_object: None,
-    }
-  }
-
-  pub fn enable_coverage(&mut self) {
-    unsafe { ffi::PyEval_RestoreThread(self.interpreter_state) };
-
-    // We have just got the GIL
-    let interpreter = unsafe { &ActiveInterpreter::new() };
-    self.coverage_trace_object = Some(coverage::enable_collection(interpreter));
-
-    self.interpreter_state = unsafe { ffi::PyEval_SaveThread() };
-  }
-
-  pub fn get_coverage(&mut self) -> Option<coverage::Lines> {
-    unsafe { ffi::PyEval_RestoreThread(self.interpreter_state) };
-
-    // We have just got the GIL
-    let interpreter = unsafe { &ActiveInterpreter::new() };
-    let lines = mem::take(&mut self.coverage_trace_object)
-      .as_ref()
-      .map(|trace_object| coverage::get_executed_lines(interpreter, trace_object));
-
-    self.interpreter_state = unsafe { ffi::PyEval_SaveThread() };
-
-    lines
+    Self { interpreter_state }
   }
 }
 impl Interpreter for SubInterpreter {

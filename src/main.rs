@@ -39,24 +39,19 @@ fn main() -> ExitCode {
     .tests
     .par_iter()
     .map(|test| {
-      let mut subinterpreter = python::SubInterpreter::new(&interpreter);
-
-      if settings.coverage.enabled {
-        subinterpreter.enable_coverage();
-      }
-
-      let outcome = subinterpreter.with_gil(|python| {
+      python::SubInterpreter::new(&interpreter).with_gil(|python| {
+        python.add_parent_module_to_path(test.file());
         if !settings.no_output_capture {
           python.capture_output();
         }
+        let tracer = (settings.coverage.enabled).then(|| coverage::enable_collection(python));
 
-        python.add_parent_module_to_path(test.file());
+        let test_outcome = run::test(python, test);
+        let coverage =
+          tracer.map(|tracer_object| coverage::get_executed_lines(python, &tracer_object));
 
-        run::test(python, test)
-      });
-      let coverage = subinterpreter.get_coverage();
-
-      (outcome, coverage)
+        (test_outcome, coverage)
+      })
     })
     .inspect(|(outcome, _coverage)| {
       reporter.result(outcome);
