@@ -21,6 +21,8 @@ To install `xc`:
 cargo install --git https://github.com/brownben/xc.git
 ```
 
+As it is built from source, it will build against the currently active Python version. If you want it built for a specific version, make sure to build it in the virtual enviroment for that version.
+
 To run tests:
 
 ```sh
