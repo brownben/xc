@@ -19,6 +19,18 @@ pub(crate) struct Settings {
   #[clap(long, default_value_t = false)]
   pub no_fail_fast: bool,
 
+  /// List of (comma separated) modules to try to import in the main interpreter.
+  ///
+  /// Some modules need imported in the main interpreter, else they crash the subinterpreters.
+  #[clap(
+    long,
+    value_name = "MODULE_NAME",
+    num_args = 1..,
+    value_delimiter = ',',
+    default_value = "pytest",
+  )]
+  pub known_imports: Vec<String>,
+
   /// How test results should be reported
   #[clap(long, value_enum, default_value_t = OutputFormat::Standard)]
   pub output: OutputFormat,

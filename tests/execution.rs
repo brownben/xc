@@ -175,6 +175,7 @@ execution_test!(invalid_remove);
 execution_test!(isolated);
 #[cfg(feature = "ci")] // Takes a long time, so don't want it slowing down developement cycles
 execution_test!(long_running);
+execution_test!(pytest_marks);
 execution_test!(setup_teardown);
 execution_test!(skip_tests);
 execution_test!(times); // No tests are in this file, just a standard python file

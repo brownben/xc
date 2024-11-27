@@ -27,10 +27,10 @@ impl ActiveInterpreter {
     unsafe { PyObject::from_ptr_unchecked(result) }
   }
 
-  /// Imports a module
+  /// Imports a known module
   ///
   /// SAFETY: Assumes that the module exists
-  pub fn import_module(&self, module: &CStr) -> PyObject {
+  pub fn import_known_module(&self, module: &CStr) -> PyObject {
     let result = unsafe { ffi::PyImport_ImportModule(module.as_ptr().cast()) };
 
     debug_assert!(!result.is_null());
@@ -40,12 +40,23 @@ impl ActiveInterpreter {
     object
   }
 
+  /// Imports a module which may not exist
+  #[must_use]
+  pub fn import_module(&self, module: &str) -> Option<PyObject> {
+    let module = self.new_string(module);
+    let result = unsafe { ffi::PyImport_Import(module.as_ptr()) };
+    if result.is_null() {
+      PyError::clear();
+    }
+    PyObject::from_ptr(result)
+  }
+
   /// Redirect stdout and stderr from Python into a string
   ///
   /// Captured output can be fetched by [`Self::get_captured_output`]
   pub fn capture_output(&self) {
-    let sys = self.import_module(c"sys");
-    let io = self.import_module(c"io");
+    let sys = self.import_known_module(c"sys");
+    let io = self.import_known_module(c"io");
 
     let string_io = io.get_attr(&self.new_string("StringIO")).unwrap();
     let stdout_io = unsafe { string_io.call_unchecked() };
@@ -57,7 +68,7 @@ impl ActiveInterpreter {
 
   /// Get the captured stdout and stderr
   pub fn get_captured_output(&self) -> (Option<String>, Option<String>) {
-    let sys = self.import_module(c"sys");
+    let sys = self.import_known_module(c"sys");
 
     let stdout = sys.get_attr(&self.new_string("stdout")).unwrap();
     let stderr = sys.get_attr(&self.new_string("stderr")).unwrap();
@@ -84,7 +95,7 @@ impl ActiveInterpreter {
   /// Most commonly used to add the current folder to the module search path.
   /// Assumes Python Interpreter is currently active.
   pub fn add_to_sys_modules_path(&self, path: &CStr) {
-    let sys = self.import_module(c"sys");
+    let sys = self.import_known_module(c"sys");
     let path_list = sys.get_attr(&self.new_string("path")).unwrap();
 
     unsafe {

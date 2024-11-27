@@ -1,3 +1,6 @@
-# Requirements for ./execution/dependencies.txt
+# Requirements for ./execution/dependencies.py
 astroid
 yarl
+
+# Requirements for ./execution/pytest_marks.py
+pytest

@@ -2,6 +2,7 @@ use pyo3_ffi::{self as ffi};
 use std::{ffi::CStr, fmt, marker::PhantomData, ops::Deref, ptr::NonNull};
 
 /// Represents a Python object
+#[must_use]
 pub struct PyObject(NonNull<ffi::PyObject>);
 impl PyObject {
   /// Gets the underlying pointer for the object

@@ -31,7 +31,11 @@ fn main() -> ExitCode {
   interpreter.with_gil(|python| {
     // The decimal module crashes Python 3.12 if it is initialised multiple times
     // If not initialised in the base interpreter, if a subinterpreter imports it it will crash
-    _ = python.import_module(c"decimal");
+    _ = python.import_known_module(c"decimal");
+
+    for module in &settings.known_imports {
+      _ = python.import_module(module);
+    }
   });
 
   // Run tests
