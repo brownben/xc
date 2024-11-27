@@ -105,6 +105,64 @@ fn regular_output_skipped() {
   );
 }
 
+#[test]
+fn regular_output_failing_stdout() {
+  let output = Command::cargo_bin(env!("CARGO_PKG_NAME"))
+    .unwrap()
+    .arg("./tests/output/failed_test_stdout.py")
+    .output()
+    .unwrap();
+  let (stdout, stderr) = (clean_output(output.stdout), clean_output(output.stderr));
+
+  assert!(!output.status.success());
+  assert_eq!(stdout, "");
+  assert_eq!(
+    stderr,
+    indoc! {"
+      xc 🏃 (Python 3)
+         Found 1 tests from 1 files in <TIME>s
+            FAIL [   <TIME>s] ./tests/output/failed_test_stdout.py test_fails_with_output
+
+      FAIL: test_fails_with_output (./tests/output/failed_test_stdout.py)
+      AssertionError:
+
+      ╭─ Traceback:
+      │  test_fails_with_output (xc/tests/output/failed_test_stdout.py:3)
+      ╰─
+      ╭─ Stdout:
+      │  Output
+      ╰─"}
+  );
+}
+
+#[test]
+fn regular_output_failing_stdout_no_capture() {
+  let output = Command::cargo_bin(env!("CARGO_PKG_NAME"))
+    .unwrap()
+    .arg("./tests/output/failed_test_stdout.py")
+    .arg("--no-output-capture")
+    .output()
+    .unwrap();
+  let (stdout, stderr) = (clean_output(output.stdout), clean_output(output.stderr));
+
+  assert!(!output.status.success());
+  assert_eq!(stdout, "Output");
+  assert_eq!(
+    stderr,
+    indoc! {"
+      xc 🏃 (Python 3)
+         Found 1 tests from 1 files in <TIME>s
+            FAIL [   <TIME>s] ./tests/output/failed_test_stdout.py test_fails_with_output
+
+      FAIL: test_fails_with_output (./tests/output/failed_test_stdout.py)
+      AssertionError:
+
+      ╭─ Traceback:
+      │  test_fails_with_output (xc/tests/output/failed_test_stdout.py:3)
+      ╰─"}
+  );
+}
+
 /// Cleans stdout & stderr outputs so it is consistent and readable for tests
 /// - Removes ANSI Escape Codes
 /// - Replaces Times and Versions with placeholders as they will change

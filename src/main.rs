@@ -46,7 +46,10 @@ fn main() -> ExitCode {
       }
 
       let outcome = subinterpreter.with_gil(|python| {
-        python.capture_output();
+        if !settings.no_output_capture {
+          python.capture_output();
+        }
+
         python.add_parent_module_to_path(test.file());
 
         run::test(python, test)

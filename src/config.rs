@@ -11,6 +11,10 @@ pub(crate) struct Settings {
   #[clap(long, value_name = "FILE_PATTERN")]
   pub exclude: Vec<std::path::PathBuf>,
 
+  /// Don't capture the STDOUT and STDERR of tests
+  #[clap(long, default_value_t = false)]
+  pub no_output_capture: bool,
+
   /// Don't stop executing tests after one has failed
   #[clap(long, default_value_t = false)]
   pub no_fail_fast: bool,
@@ -91,6 +95,7 @@ mod pyproject_toml {
   pub struct XCSettings {
     include: Option<Vec<PathBuf>>,
     exclude: Option<Vec<PathBuf>>,
+    capture_output: Option<bool>,
     no_fail_fast: Option<bool>,
     coverage: Option<bool>,
     coverage_include: Option<Vec<PathBuf>>,
@@ -134,6 +139,12 @@ mod pyproject_toml {
     if let Some(exclude) = &mut toml_config.exclude {
       if settings.exclude.is_empty() {
         settings.exclude = mem::take(exclude);
+      }
+    }
+
+    if let Some(capture_output) = toml_config.capture_output {
+      if !settings.no_output_capture {
+        settings.no_output_capture = !capture_output;
       }
     }
 
