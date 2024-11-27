@@ -270,34 +270,34 @@ fn has_skip_annotation(python: &ActiveInterpreter, object: &PyObject) -> Option<
     return Some(reason);
   }
 
-  if let Ok(pytest_marks) = object.get_attr_cstr(c"pytestmark") {
-    for mark in pytest_marks.into_iter() {
-      let mark_name = mark.get_attr_cstr(c"name").ok()?.to_string();
+  if let Some(reason) = has_pytest_skip_mark(python, object) {
+    return Some(reason);
+  }
 
-      let should_skip = match mark_name.as_str() {
-        "skip" => true,
-        "skipIf" => unsafe {
-          PyTuple::from_object_unchecked(mark.get_attr_cstr(c"args").ok()?)
-            .get_item_unchecked(0)
-            .is_truthy()
-        },
-        _ => false,
-      };
+  None
+}
 
-      if should_skip {
-        let reason = if let Ok(kwargs) = mark.get_attr_cstr(c"kwargs") {
-          unsafe {
-            PyDict::from_object_unchecked(kwargs)
-              .get_item(&python.new_string("reason"))
-              .map(|item| item.to_string())
-              .unwrap_or_default()
-          }
-        } else {
-          String::new()
-        };
+fn has_pytest_skip_mark(python: &ActiveInterpreter, object: &PyObject) -> Option<String> {
+  fn reason_from_kwargs(python: &ActiveInterpreter, kwargs: &PyDict) -> String {
+    kwargs
+      .get_item(&python.new_string("reason"))
+      .map(|reason| reason.to_string())
+      .unwrap_or_default()
+  }
 
-        return Some(reason);
+  for mark in pytest_marks(python, object)? {
+    match mark.name.as_str() {
+      "skip" => return Some(reason_from_kwargs(python, &mark.kwargs)),
+      "skipIf" => {
+        let condition = (mark.args.get_item(0))
+          .map(|condition| condition.is_truthy())
+          .unwrap_or(true);
+
+        if condition {
+          return Some(reason_from_kwargs(python, &mark.kwargs));
+        }
       }
+      _ => {}
     }
   }
 
@@ -306,25 +306,55 @@ fn has_skip_annotation(python: &ActiveInterpreter, object: &PyObject) -> Option<
 
 /// Checks a [`PyObject`] for the annotation for expecting a failure
 fn is_expecting_failure(python: &ActiveInterpreter, object: &PyObject) -> bool {
-  if has_truthy_attr(python, object, "__unittest_expecting_failure__") {
-    return true;
-  }
+  has_truthy_attr(python, object, "__unittest_expecting_failure__")
+    || has_pytest_expect_fail_mark(python, object)
+}
 
-  if let Ok(pytest_marks) = object.get_attr_cstr(c"pytestmark") {
-    for mark in pytest_marks.into_iter() {
-      let mark_name = mark.get_attr_cstr(c"name").unwrap().to_string();
+fn has_pytest_expect_fail_mark(python: &ActiveInterpreter, object: &PyObject) -> bool {
+  let Some(pytest_marks) = pytest_marks(python, object) else {
+    return false;
+  };
 
-      if mark_name == "xfail" {
-        return unsafe {
-          PyTuple::from_object_unchecked(mark.get_attr_cstr(c"args").unwrap())
-            .get_item_unchecked(0)
-            .is_truthy()
-        };
+  for mark in pytest_marks {
+    if mark.name == "xfail" {
+      if let Ok(condition) = mark.args.get_item(0) {
+        return condition.is_truthy();
       }
+
+      // if there is no condition, then it is always expected to fail
+      return true;
     }
   }
 
   false
+}
+
+fn pytest_marks(
+  python: &ActiveInterpreter,
+  object: &PyObject,
+) -> Option<impl Iterator<Item = PytestMark>> {
+  let marks = object.get_attr_cstr(c"pytestmark").ok()?;
+
+  let name = python.new_string("name");
+  let args = python.new_string("args");
+  let kwargs = python.new_string("kwargs");
+
+  Some(marks.try_into_iter()?.filter_map(move |mark| {
+    let name = mark.get_attr(&name).ok()?.to_string();
+    let args = PyTuple::from_object(mark.get_attr(&args).ok()?)?;
+    let kwargs = PyDict::from_object(mark.get_attr(&kwargs).ok()?)?;
+
+    Some(PytestMark {
+      name: name.to_string(),
+      args,
+      kwargs,
+    })
+  }))
+}
+struct PytestMark {
+  name: String,
+  args: PyTuple,
+  kwargs: PyDict,
 }
 
 fn call_optional_method(

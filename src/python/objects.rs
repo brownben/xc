@@ -94,6 +94,13 @@ impl PyObject {
     debug_assert!(!iterator_ptr.is_null());
     PyIter(unsafe { Self::from_ptr_unchecked(iterator_ptr) })
   }
+  /// Convert the object to an iterator
+  ///
+  /// SAFETY: Assumes that the object is an iterator
+  pub fn try_into_iter(&self) -> Option<PyIter> {
+    let iterator_ptr = unsafe { ffi::PyObject_GetIter(self.as_ptr()) };
+    Some(PyIter(Self::from_ptr(iterator_ptr)?))
+  }
 
   /// The name of the Type of the `PyObject`
   pub fn type_name(&self) -> String {
@@ -379,7 +386,7 @@ impl PyTuple {
     debug_assert!(self.is_tuple());
     debug_assert!(index >= 0);
 
-    let ptr = unsafe { ffi::PyTuple_GET_ITEM(self.as_ptr(), index) };
+    let ptr = unsafe { ffi::PyTuple_GetItem(self.as_ptr(), index) };
     Ok(BorrowedPyObject::new(PyObject::from_ptr_or_error(ptr)?))
   }
 }
