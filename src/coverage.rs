@@ -1,44 +1,47 @@
 //! # Coverage
 //! Track which lines of code have been executed.
-#![allow(unsafe_code)]
 
-use pyo3_ffi::{self as ffi};
 use rayon::prelude::*;
 use std::collections::{BTreeSet, HashMap};
 use std::ffi::CString;
 use std::{fs, path};
 
-use crate::python::{self, PyObject};
+use crate::python::{
+  objects::{PyDict, PyError, PyIter, PyObject, PyTuple},
+  ActiveInterpreter, Interpreter, MainInterpreter, SubInterpreter,
+};
 
 /// Enables line coverage collection, and returns the tracer object
-pub fn enable_collection() -> PyObject {
+pub fn enable_collection(python: &ActiveInterpreter) -> PyObject {
   let raw_source = include_str!("./monitoring.py");
   let source = CString::new(raw_source).unwrap();
-  let module = python::execute_string(&source).expect("code to run");
+  let module = python.execute_string(&source).expect("code to run");
 
-  module.get_attr_cstr(c"tracer").expect("var to exist")
+  module
+    .get_attr(&python.new_string("tracer"))
+    .expect("`tracer` var to exist")
 }
 
 /// Get the lines that have been executed, converting them from a Python structure
-pub fn get_executed_lines(tracer_object: &PyObject) -> Lines {
-  unsafe {
-    let lines = tracer_object.get_attr_cstr(c"lines").unwrap();
-    let filename_line_pairs = PyObject::new(ffi::PyDict_Items(lines.as_ptr())).unwrap();
+pub fn get_executed_lines(_python: &ActiveInterpreter, tracer_object: &PyObject) -> Lines {
+  let lines = tracer_object.get_attr_cstr(c"lines").unwrap();
+  let filename_line_pairs = PyDict::from_object(lines).unwrap().items();
 
-    filename_line_pairs
-      .into_iter()
-      .map(|tuple| {
-        let filename = tuple.get_tuple_item(0).to_string();
-        let lines = tuple
-          .get_tuple_item(1)
-          .into_iter()
-          .map(PyObject::get_long)
-          .collect();
+  filename_line_pairs
+    .into_iter()
+    .map(|tuple| {
+      let tuple = unsafe { PyTuple::from_object_unchecked(tuple) };
+      let filename = unsafe { tuple.get_item_unchecked(0).to_string() };
+      let lines_set = unsafe { tuple.get_item_unchecked(1) };
 
-        (filename, lines)
-      })
-      .collect()
-  }
+      let lines = lines_set
+        .into_iter()
+        .map(|line_no| line_no.as_long())
+        .collect();
+
+      (filename, lines)
+    })
+    .collect()
 }
 
 /// Holds the line numbers for a file
@@ -102,7 +105,7 @@ impl FromIterator<(String, BTreeSet<i32>)> for Lines {
 /// not be reported but are still executed. So we need to find which lines could be run,
 /// rather than just the range of the file.
 pub fn get_executable_lines(
-  interpreter: &python::Interpreter,
+  interpreter: &MainInterpreter,
   coverage_include: &[path::PathBuf],
   coverage_exclude: &[path::PathBuf],
 ) -> Lines {
@@ -146,8 +149,8 @@ pub fn get_executable_lines(
       }
 
       // as we are compiling python, we need an interpreter
-      let line_numbers =
-        python::SubInterpreter::new(interpreter).run(|| get_line_numbers_for_python_file(&path));
+      let line_numbers = SubInterpreter::new(interpreter)
+        .with_gil(|python| get_line_numbers_for_python_file(python, &path));
 
       if line_numbers.is_empty() {
         None
@@ -159,33 +162,44 @@ pub fn get_executable_lines(
     .collect()
 }
 
-fn get_line_numbers_for_python_file(path: &path::Path) -> BTreeSet<i32> {
+fn get_line_numbers_for_python_file(
+  python: &ActiveInterpreter,
+  path: &path::Path,
+) -> BTreeSet<i32> {
   let mut line_numbers = BTreeSet::new();
-  let code_object = crate::python::compile_file(path).unwrap();
-  let _ = get_line_numbers_from_code_object(&code_object, &mut line_numbers);
+  let code_object = python.compile_file(path).unwrap();
+  let _ = get_line_numbers_from_code_object(python, &code_object, &mut line_numbers);
 
   line_numbers
 }
 
 fn get_line_numbers_from_code_object(
+  python: &ActiveInterpreter,
   code_object: &PyObject,
   line_numbers: &mut BTreeSet<i32>,
-) -> Result<(), python::Error> {
+) -> Result<(), PyError> {
   // Search all constants for code objects and recurse into them
-  let constants = code_object.get_attr_cstr(c"co_consts")?;
+  let constants = code_object.get_attr(&python.new_string("co_consts"))?;
   let code_objects = constants.into_iter().filter(PyObject::is_code_object);
   for code_object in code_objects {
-    get_line_numbers_from_code_object(&code_object, line_numbers)?;
+    get_line_numbers_from_code_object(python, &code_object, line_numbers)?;
   }
 
   // Get all the line numbers from the code object
   // The `co_lines` function is specified here: https://peps.python.org/pep-0626/
   // Gives a tuple of (bytecode_start_byte, bytecode_end_byte, line_number)
-  let iterator_lines = code_object.get_attr_cstr(c"co_lines")?.call()?;
+  let iterator_lines = unsafe {
+    code_object
+      .get_attr_unchecked(&python.new_string("co_lines"))
+      .call_unchecked()
+  };
   line_numbers.extend(
-    iterator_lines
-      .iter()
-      .map(|line_tuple| line_tuple.get_tuple_item(2).get_long())
+    unsafe { PyIter::from_object_unchecked(iterator_lines) }
+      .map(|line_tuple| unsafe { PyTuple::from_object_unchecked(line_tuple) })
+      .filter_map(|tuple| {
+        let line_number = unsafe { tuple.get_item_unchecked(2) };
+        line_number.is_number().then(|| line_number.as_long())
+      })
       .filter(|line_number| *line_number > 0),
   );
 

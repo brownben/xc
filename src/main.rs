@@ -1,6 +1,5 @@
 #![warn(clippy::pedantic)]
 #![allow(clippy::unsafe_derive_deserialize)]
-#![deny(unsafe_code)]
 
 mod config;
 mod coverage;
@@ -9,6 +8,7 @@ mod output;
 mod python;
 mod run;
 
+use python::Interpreter;
 use rayon::prelude::*;
 use run::TestOutcome;
 use std::{
@@ -27,7 +27,12 @@ fn main() -> ExitCode {
   reporter.discovered(&discovered);
 
   // Main Python interpreter must be initialized in the main thread
-  let interpreter = python::Interpreter::initialize();
+  let mut interpreter = python::MainInterpreter::initialize();
+  interpreter.with_gil(|python| {
+    // The decimal module crashes Python 3.12 if it is initialised multiple times
+    // If not initialised in the base interpreter, if a subinterpreter imports it it will crash
+    _ = python.import_module(c"decimal");
+  });
 
   // Run tests
   let results: TestSummary = discovered
@@ -40,7 +45,12 @@ fn main() -> ExitCode {
         subinterpreter.enable_coverage();
       }
 
-      let outcome = subinterpreter.run(|| run::test(test));
+      let outcome = subinterpreter.with_gil(|python| {
+        python.capture_output();
+        python.add_parent_module_to_path(test.file());
+
+        run::test(python, test)
+      });
       let coverage = subinterpreter.get_coverage();
 
       (outcome, coverage)

@@ -175,11 +175,15 @@ fn error(test: &TestOutcome) -> io::Result<()> {
     )?;
   }
 
-  if !error.stdout.is_empty() {
-    frame(&mut w, "Stdout", error.stdout.lines())?;
+  if let Some(stdout) = &error.stdout {
+    if !stdout.is_empty() {
+      frame(&mut w, "Stdout", stdout.lines())?;
+    }
   }
-  if !error.stderr.is_empty() {
-    frame(&mut w, "Stderr", error.stderr.lines())?;
+  if let Some(stderr) = &error.stderr {
+    if !stderr.is_empty() {
+      frame(&mut w, "Stderr", stderr.lines())?;
+    }
   }
 
   w.flush()

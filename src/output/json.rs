@@ -1,8 +1,5 @@
 use super::Reporter;
-use crate::{
-  python,
-  run::{OutcomeKind, TestOutcome},
-};
+use crate::run::{Error, OutcomeKind, TestOutcome};
 
 use serde::{Deserialize, Serialize};
 use std::{
@@ -30,7 +27,7 @@ pub struct JSONTestOutput {
   pub outcome: Outcome,
 
   #[serde(skip_serializing_if = "Option::is_none")]
-  pub error: Option<python::Error>,
+  pub error: Option<Error>,
   #[serde(skip_serializing_if = "Option::is_none")]
   pub time: Option<Duration>,
 }
