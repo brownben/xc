@@ -45,7 +45,7 @@ impl MainInterpreter {
 
       if let Ok(virtual_enviroment) = env::var("VIRTUAL_ENV") {
         virtual_enviroment_path = WideCString::from_str(&virtual_enviroment).unwrap();
-        config.assume_init_mut().home = virtual_enviroment_path.as_mut_ptr().cast();
+        config.assume_init_mut().prefix = virtual_enviroment_path.as_mut_ptr().cast();
       }
 
       ffi::Py_InitializeFromConfig(ptr::from_mut(config.assume_init_mut()));
